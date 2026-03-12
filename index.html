@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f4ee" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta
+      name="description"
+      content="引っ越しの物件比較、タスク逆算、費用管理、バックアップを1つにまとめるiPhone向けアプリ"
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Moving Mate</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Moving Mate</p>
+          <h1>引っ越し準備を、迷わず進める</h1>
+          <p class="hero-copy">
+            物件比較、URL保存と本文コピペ解析、引っ越し日からの逆算タスク、家具家電を含めた総額管理を1つの画面群で扱えます。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="seedDataButton" class="secondary-button" type="button">ダミーデータ再投入</button>
+          <button id="exportJsonButton" class="ghost-button" type="button">JSON書き出し</button>
+          <label class="ghost-button file-button">
+            JSON読み込み
+            <input id="importJsonInput" type="file" accept="application/json" hidden />
+          </label>
+        </div>
+      </header>
+
+      <nav class="tabbar" aria-label="主要セクション">
+        <button class="tab is-active" data-target="dashboard" type="button">概要</button>
+        <button class="tab" data-target="properties" type="button">物件比較</button>
+        <button class="tab" data-target="tasks" type="button">やること</button>
+        <button class="tab" data-target="purchases" type="button">費用</button>
+      </nav>
+
+      <main>
+        <section id="dashboard" class="panel is-active">
+          <div class="summary-grid" id="summaryCards"></div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Moving Day</p>
+                <h2>引っ越し日と基準駅</h2>
+              </div>
+            </div>
+            <form id="settingsForm" class="form-grid compact-form">
+              <div class="field">
+                <label for="movingDate">引っ越し予定日</label>
+                <input id="movingDate" name="movingDate" type="date" />
+              </div>
+              <div class="field">
+                <label for="targetStation">比較したい駅</label>
+                <input id="targetStation" name="targetStation" type="text" placeholder="例: 新宿" />
+              </div>
+              <div class="field full form-actions">
+                <button class="primary-button" type="submit">設定を保存</button>
+                <button id="generateSuggestedTasks" class="secondary-button" type="button">逆算タスクを作成</button>
+              </div>
+            </form>
+            <div id="movingPlanSummary" class="info-strip"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Overview</p>
+                <h2>比較サマリー</h2>
+              </div>
+              <button id="exportSummaryCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="bestPropertyCard" class="highlight-card"></div>
+            <div id="propertyTable" class="comparison-table"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Deadline</p>
+                <h2>近い期限と注意タスク</h2>
+              </div>
+            </div>
+            <div id="upcomingTasks" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="properties" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">URL Assist</p>
+                <h2>URLと本文から入力候補を作る</h2>
+              </div>
+            </div>
+            <div class="form-grid compact-form">
+              <div class="field">
+                <label for="assistUrlInput">物件URLを保存</label>
+                <input id="assistUrlInput" type="url" placeholder="https://..." />
+              </div>
+              <div class="field">
+                <label for="assistSourceLabel">補助メモ</label>
+                <input id="assistSourceLabel" type="text" placeholder="例: SUUMOの募集ページ" />
+              </div>
+              <div class="field full">
+                <label for="listingTextInput">ページ本文や物件概要を貼り付け</label>
+                <textarea
+                  id="listingTextInput"
+                  placeholder="物件ページの本文、募集図面のテキスト、概要欄などを貼り付けてください"
+                ></textarea>
+              </div>
+              <div class="field full form-actions">
+                <button id="parseListingButton" class="secondary-button" type="button">URL/貼り付け内容から候補抽出</button>
+                <span id="assistStatus" class="muted">URL保存と本文コピペ解析を優先しています</span>
+              </div>
+            </div>
+            <div id="assistSummary" class="info-strip"></div>
+            <div id="candidatePanel" class="stack-list"></div>
+            <details class="details-box">
+              <summary>貼り付けテキストを確認する</summary>
+              <pre id="listingRawText" class="ocr-raw"></pre>
+            </details>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Input</p>
+                <h2>物件を追加・編集</h2>
+              </div>
+            </div>
+            <form id="propertyForm" class="form-grid"></form>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Compare</p>
+                <h2>並び替え・絞り込み</h2>
+              </div>
+            </div>
+            <div class="toolbar-grid">
+              <div class="field">
+                <label for="sortKey">並び替え</label>
+                <select id="sortKey"></select>
+              </div>
+              <div class="quick-filters" id="quickFilterChips"></div>
+            </div>
+            <details class="details-box">
+              <summary>詳細フィルター</summary>
+              <form id="propertyFilterForm" class="form-grid compact-form"></form>
+            </details>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Library</p>
+                <h2>登録済み物件</h2>
+              </div>
+              <button id="exportPropertyCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="propertyList" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="tasks" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Checklist</p>
+                <h2>タスクを追加・編集</h2>
+              </div>
+            </div>
+            <form id="taskForm" class="form-grid compact-form"></form>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Timeline</p>
+                <h2>逆算スケジュール</h2>
+              </div>
+            </div>
+            <div id="taskTimeline" class="timeline-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Tasks</p>
+                <h2>カテゴリ別タスク</h2>
+              </div>
+              <button id="exportTaskCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="taskGroups" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="purchases" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Budget</p>
+                <h2>追加購入・その他費用</h2>
+              </div>
+            </div>
+            <form id="purchaseForm" class="form-grid compact-form"></form>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Spend</p>
+                <h2>出費一覧</h2>
+              </div>
+              <button id="exportPurchaseCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="purchaseList" class="stack-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <p>まだデータがありません。</p>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
