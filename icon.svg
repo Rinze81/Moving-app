@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Moving Mate icon">
+  <rect width="256" height="256" rx="56" fill="#f3efe7"/>
+  <rect x="34" y="52" width="188" height="150" rx="28" fill="#154c79"/>
+  <path d="M72 94h112a16 16 0 0 1 16 16v42a16 16 0 0 1-16 16H72a16 16 0 0 1-16-16v-42a16 16 0 0 1 16-16Z" fill="#fffdf9"/>
+  <path d="M86 84h84v18H86z" fill="#a5632a"/>
+  <circle cx="96" cy="184" r="12" fill="#a5632a"/>
+  <circle cx="170" cy="184" r="12" fill="#a5632a"/>
+  <path d="M96 124h64" stroke="#154c79" stroke-width="10" stroke-linecap="round"/>
+  <path d="M96 146h42" stroke="#154c79" stroke-width="10" stroke-linecap="round"/>
+</svg>

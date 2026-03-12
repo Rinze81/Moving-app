@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f4ee" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta
+      name="description"
+      content="引っ越しのタスク、物件比較、追加購入費用をまとめて管理できるiPhone向けアプリ"
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Moving Mate</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Moving Mate</p>
+          <h1>引っ越しを、1つの場所で整理する</h1>
+          <p class="hero-copy">
+            物件比較、やること管理、家具家電まで含めた総額把握を、iPhoneで片手で進めやすく。
+          </p>
+        </div>
+        <button id="seedDataButton" class="secondary-button" type="button">ダミーデータを再投入</button>
+      </header>
+
+      <nav class="tabbar" aria-label="主要セクション">
+        <button class="tab is-active" data-target="dashboard" type="button">概要</button>
+        <button class="tab" data-target="properties" type="button">物件比較</button>
+        <button class="tab" data-target="tasks" type="button">やること</button>
+        <button class="tab" data-target="purchases" type="button">購入費用</button>
+      </nav>
+
+      <main>
+        <section id="dashboard" class="panel is-active">
+          <div class="summary-grid" id="summaryCards"></div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Best Pick</p>
+                <h2>比較サマリー</h2>
+              </div>
+              <button id="exportSummaryCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="bestPropertyCard" class="highlight-card"></div>
+            <div id="propertyTable" class="comparison-table"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Timeline</p>
+                <h2>期限が近いタスク</h2>
+              </div>
+            </div>
+            <div id="upcomingTasks" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="properties" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Input</p>
+                <h2>物件を追加</h2>
+              </div>
+            </div>
+            <form id="propertyForm" class="form-grid"></form>
+          </div>
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Library</p>
+                <h2>登録済み物件</h2>
+              </div>
+              <button id="exportPropertyCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="propertyList" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="tasks" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Checklist</p>
+                <h2>タスクを追加</h2>
+              </div>
+            </div>
+            <form id="taskForm" class="form-grid compact-form"></form>
+          </div>
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Focus</p>
+                <h2>カテゴリ別タスク</h2>
+              </div>
+              <button id="exportTaskCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="taskGroups" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="purchases" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Budget</p>
+                <h2>追加購入・その他費用</h2>
+              </div>
+            </div>
+            <form id="purchaseForm" class="form-grid compact-form"></form>
+          </div>
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Spend</p>
+                <h2>出費一覧</h2>
+              </div>
+              <button id="exportPurchaseCsv" class="ghost-button" type="button">CSV出力</button>
+            </div>
+            <div id="purchaseList" class="stack-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <p>まだデータがありません。</p>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
