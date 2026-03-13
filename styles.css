@@ -220,6 +220,13 @@ button {
   gap: 12px;
 }
 
+.shared-space-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
 .summary-card,
 .highlight-card,
 .list-item,
@@ -314,6 +321,26 @@ th {
 .group-title {
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+.status-muted {
+  color: var(--ink);
+}
+
+.status-info {
+  color: var(--brand-strong);
+}
+
+.status-success {
+  color: var(--success);
+}
+
+.status-warning {
+  color: var(--warning);
+}
+
+.status-danger {
+  color: var(--danger);
 }
 
 .meta-row,
@@ -821,6 +848,10 @@ th {
 
   .summary-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .shared-space-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .form-grid {

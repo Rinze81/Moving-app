@@ -1,81 +1,93 @@
 # Moving Mate
 
-引っ越しの物件比較、やること管理、家具家電を含む総額確認を 1 つにまとめる、スマホ向けの静的 Web アプリです。GitHub Pages のような静的ホスティングでそのまま動かしやすい構成を維持しています。
+引っ越し比較・タスク・購入費用・メモをまとめる静的 Web アプリです。  
+もともとの `localStorage` 中心構成を残しつつ、最小構成で Supabase に同期して 2 人で共有できるようにしています。
 
-## 主な機能
+## 共有の考え方
 
-- 物件ごとの初期費用・月額費用比較
-- URL 保存
-- ページ本文のコピペ解析による半自動入力候補作成
-- 画像保存
-- 物件 / タスク / 購入費用の編集
-- 基本情報と詳細情報を分けた物件フォーム
-- メモの自動箇条書き入力補助
-- 並び替え・絞り込み付きの物件比較
-- 引っ越し日から逆算したタスク提案
-- タスクごとの注意開始日・警告開始日の設定
-- 家具・家電・引っ越し業者などの追加費用登録
-- CSV 出力
-- JSON エクスポート / インポート
-- PWA 対応
+- 共有単位は `shared_space`
+- 1 つの `shared_space` に `properties / tasks / purchases / notes` をひも付け
+- 画面上で `slug` または `共有コード` を入力すると同じデータに接続
+- 接続していない間は従来どおり `localStorage` に保存
+- 接続後はローカル保存を続けながら Supabase に同期
+
+今回は最小構成なので、設定値や画像データはローカル寄りです。  
+共有対象は `properties / tasks / purchases / notes` を優先しています。
 
 ## ファイル構成
 
 - `index.html`: 画面本体
-- `styles.css`: モバイル優先のスタイル
-- `app.js`: データ保存、UI 描画、URL / 本文解析補助、比較、CSV / JSON 出力
-- `manifest.webmanifest`: PWA マニフェスト
-- `sw.js`: 最小のオフラインキャッシュ
+- `styles.css`: UI スタイル
+- `app.js`: 既存ロジック + shared_space 接続 / Supabase 同期
+- `config.example.js`: Supabase 設定の雛形
+- `supabase/schema.sql`: テーブル / index / trigger / RLS
 
-## 起動方法
+## Supabase の設定方法
 
-ブラウザで `index.html` を直接開いても基本機能は使えます。PWA と Service Worker を安定して使う場合は、GitHub Pages またはローカルの静的ファイルサーバー経由で開くのを推奨します。
+1. Supabase プロジェクトの `Project URL` と `anon public key` を確認します。
+2. `config.example.js` をコピーして `config.js` を作成します。
+3. `config.js` に値を入れます。
 
-### GitHub Pages
+```js
+window.MOVING_MATE_CONFIG = {
+  SUPABASE_URL: "https://YOUR_PROJECT.supabase.co",
+  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_KEY"
+};
+```
 
-1. この内容を GitHub リポジトリへ push
-2. Pages を有効化
-3. 発行された URL を iPhone Safari で開く
-4. Safari の共有メニューから「ホーム画面に追加」を選ぶ
+`config.js` は `.gitignore` に入れてあるので、そのままコミットしない運用を想定しています。
 
-## URL 保存について
+## SQL の適用方法
 
-- SUUMO などの物件 URL を保存できます
-- URL は物件フォームに保存でき、一覧から新しいタブで開けます
-- URL だけではブラウザから外部サイト内容を完全自動取得できない場合があります
-- ページ本文や物件概要をコピペすると、物件名、費用、広さ、駅徒歩などの候補を抽出してフォームへ反映できます
-- 候補は自動確定されず、ユーザーが確認してから反映する方式です
+1. Supabase Dashboard を開きます。
+2. `SQL Editor` に [supabase/schema.sql](/C:/Users/FINE/Documents/Playground/supabase/schema.sql) の内容を貼ります。
+3. 実行して、`shared_spaces / properties / tasks / purchases / notes` が作成されることを確認します。
 
-## UX 改善
+## GitHub Pages で動かすときの注意
 
-- 登録済みの物件、タスク、購入費用は一覧から編集できます
-- 物件フォームは `基本情報` と `詳細情報` に分かれていて、最小入力で登録を始められます
-- メモ欄では箇条書きの行で Enter を押すと、次の行にも自動で記号を入れます
-- 補助的な本文コピペ解析は折りたたみ内に置き、主導線は通常の物件登録を優先しています
+- GitHub Pages にはサーバー側の環境変数注入がないため、最初は `config.js` を手元やデプロイ工程で差し込むのが現実的です。
+- `service role key` は絶対にフロントエンドへ置かないでください。
+- この実装は `anon key` のみを使います。
+- RLS は `x-shared-space-slug` / `x-shared-space-code` ヘッダーを見てアクセス範囲を絞る前提です。
+- `slug` だけでも接続できる構成なので、実運用では推測しにくい `access_code` を併用するのをおすすめします。
 
-## GitHub Pages で動く範囲
+## 無料枠での想定利用
 
-- URL 保存
-- ページ本文コピペからの候補抽出
-- 候補確認後のフォーム反映
-- 物件比較の並び替え / 絞り込み
-- 引っ越し日からの逆算タスク生成
-- CSV / JSON の入出力
-- PWA とローカル保存
+- 利用人数: 2 人
+- shared_space 数: まずは 1 つ
+- データ量: 物件・タスク・購入費用・メモ中心
+- 同時編集制御は未実装
+- 競合時は最後に保存された内容が優先されやすい最小構成です
 
-## 将来の拡張
+Free プランでも、今回の用途ならまず十分に試せる構成です。
 
-- バックエンドを追加すると、URL からの安全なサーバー側取得や自動解析を実装しやすくなります
-- 外部サイトごとの抽出ルールや、HTML / OGP / 構造化データ解析の精度改善も可能です
-- 共有、同期、通知、認証機能も段階的に追加できます
+## shared_space の使い方
 
-## バックアップ方法
+1. アプリを開く
+2. ダッシュボード上部の `共有スペース設定` に `shared_space 名` / `slug` / `共有コード` を入れる
+3. 新規なら `新規作成`
+4. 既存へ入るなら `接続する`
+5. 既存のローカルデータを共有へ上げたい場合は `ローカルを共有へ反映`
 
-- 右上の `JSON書き出し` でバックアップファイルを保存できます
-- `JSON読み込み` で以前のバックアップを復元できます
-- CSV は共有や比較用、JSON は完全バックアップ用として使い分ける想定です
+接続後は、`properties / tasks / purchases / notes` の更新が Supabase に同期されます。  
+接続状態と最終同期時刻は同じカード内で確認できます。
 
-## 補足
+## 今回の実装での割り切り
 
-- 画像はブラウザのローカル保存領域に入るため、保存しすぎると端末ストレージを圧迫する可能性があります
-- 別端末へ移す場合は JSON エクスポートを使ってください
+- 共有対象は `properties / tasks / purchases / notes`
+- 画面設定 (`movingDate`, `targetStation`, テーマ, フィルター状態) はローカル保存
+- 画像は Supabase Storage にはまだ移していないため、この段階では共有対象外
+- オフライン時はローカルに保存し、オンライン復帰後に再同期
+
+## 将来 Auth を追加するなら
+
+拡張しやすいポイントは次の通りです。
+
+- `shared_spaces` に owner / member テーブルを追加する
+- 現在の `slug / access_code` ベース接続を、`supabase.auth.getUser()` ベースへ差し替える
+- RLS を `auth.uid()` で判定する方式へ移行する
+- 画像を Supabase Storage に移し、`properties` にはファイル参照だけ持たせる
+- Realtime を足して 2 人の編集反映を速くする
+- 競合解決が必要になったら `updated_at` 比較や変更単位の細分化を入れる
+
+今回はそこまで踏み込まず、静的アプリのまま「2 人で同じデータを見られる」ことを優先しています。

@@ -1,4 +1,6 @@
 const STORAGE_KEY = "moving-mate-v2";
+const SHARED_SPACE_KEY = "moving-mate-shared-space";
+const SHARED_SYNC_DELAY_MS = 800;
 
 const SORT_OPTIONS = [
   { value: "recommended", label: "おすすめ順" },
@@ -307,6 +309,16 @@ const defaultData = {
 let state = loadState();
 let currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
 let openNoteId = "";
+let remoteState = {
+  client: null,
+  sharedSpace: loadSharedSpaceMeta(),
+  status: "ローカル保存のみ",
+  tone: "muted",
+  lastSyncedAt: "",
+  syncTimer: null,
+  syncInFlight: false,
+  pendingSync: false
+};
 
 function loadState() {
   try {
@@ -336,8 +348,9 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (options.syncRemote) scheduleRemoteSync();
 }
 
 function getSystemTheme() {
@@ -361,6 +374,128 @@ function applyTheme() {
   button.textContent = labels[state.settings.theme] || "System";
   button.setAttribute("aria-pressed", String(theme === "dark"));
   button.setAttribute("aria-label", `テーマ: ${button.textContent}`);
+}
+
+function loadSharedSpaceMeta() {
+  try {
+    const raw = localStorage.getItem(SHARED_SPACE_KEY);
+    if (!raw) return { id: "", name: "", slug: "", accessCode: "" };
+    const parsed = JSON.parse(raw);
+    return {
+      id: parsed.id || "",
+      name: parsed.name || "",
+      slug: parsed.slug || "",
+      accessCode: parsed.accessCode || ""
+    };
+  } catch (error) {
+    console.error(error);
+    return { id: "", name: "", slug: "", accessCode: "" };
+  }
+}
+
+function saveSharedSpaceMeta() {
+  if (!remoteState.sharedSpace?.slug && !remoteState.sharedSpace?.accessCode) {
+    localStorage.removeItem(SHARED_SPACE_KEY);
+    return;
+  }
+  localStorage.setItem(
+    SHARED_SPACE_KEY,
+    JSON.stringify({
+      id: remoteState.sharedSpace.id || "",
+      name: remoteState.sharedSpace.name || "",
+      slug: remoteState.sharedSpace.slug || "",
+      accessCode: remoteState.sharedSpace.accessCode || "",
+      lastSyncedAt: remoteState.lastSyncedAt || ""
+    })
+  );
+}
+
+function getSupabaseConfig() {
+  const config = window.MOVING_MATE_CONFIG || {};
+  return {
+    url: config.SUPABASE_URL || config.supabaseUrl || "",
+    anonKey: config.SUPABASE_ANON_KEY || config.supabaseAnonKey || ""
+  };
+}
+
+function canUseSupabase() {
+  const config = getSupabaseConfig();
+  return Boolean(config.url && config.anonKey && window.supabase?.createClient);
+}
+
+function getSharedSpaceHeaders(sharedSpace = remoteState.sharedSpace) {
+  const headers = {};
+  if (sharedSpace?.slug) headers["x-shared-space-slug"] = sharedSpace.slug;
+  if (sharedSpace?.accessCode) headers["x-shared-space-code"] = sharedSpace.accessCode;
+  return headers;
+}
+
+function refreshSupabaseClient(sharedSpace = remoteState.sharedSpace) {
+  if (!canUseSupabase()) {
+    remoteState.client = null;
+    return null;
+  }
+  const config = getSupabaseConfig();
+  remoteState.client = window.supabase.createClient(config.url, config.anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    },
+    global: {
+      headers: getSharedSpaceHeaders(sharedSpace)
+    }
+  });
+  return remoteState.client;
+}
+
+function setRemoteStatus(message, tone = "muted") {
+  remoteState.status = message;
+  remoteState.tone = tone;
+  renderSharedSpaceStatus();
+}
+
+function formatDateTime(value) {
+  if (!value) return "未同期";
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function parseJsonValue(value, fallback = {}) {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function numberOrNull(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function toInFilter(ids) {
+  return `(${ids.map((id) => `"${String(id).replaceAll('"', '\\"')}"`).join(",")})`;
+}
+
+function describeRemoteError(error) {
+  if (!error) return "接続に失敗しました";
+  return error.message || error.details || "接続に失敗しました";
+}
+
+function sharedCollectionsSnapshot() {
+  return {
+    properties: state.properties,
+    tasks: state.tasks,
+    purchases: state.purchases,
+    notes: state.notes
+  };
 }
 
 function currency(value) {
@@ -1116,6 +1251,7 @@ function renderAssistPanel() {
 
 function renderAll() {
   syncSettingsToForms();
+  renderSharedSpaceStatus();
   renderQuickFilters();
   renderSummary();
   renderProperties();
@@ -1235,6 +1371,445 @@ function normalizeTask(task) {
   };
 }
 
+function mapPropertyToRemote(property, sharedSpaceId) {
+  return {
+    id: property.id || crypto.randomUUID(),
+    shared_space_id: sharedSpaceId,
+    title: property.name || "",
+    real_estate_company: property.agency || "",
+    monthly_rent_text: property.rent === undefined ? "" : String(property.rent ?? ""),
+    monthly_rent_value: numberOrNull(property.rent),
+    management_fee_text: property.maintenanceFee === undefined ? "" : String(property.maintenanceFee ?? ""),
+    management_fee_value: numberOrNull(property.maintenanceFee),
+    deposit_text: property.deposit === undefined ? "" : String(property.deposit ?? ""),
+    key_money_text: property.keyMoney === undefined ? "" : String(property.keyMoney ?? ""),
+    brokerage_fee_text: property.brokerFee === undefined ? "" : String(property.brokerFee ?? ""),
+    guarantor_fee_text: property.guaranteeFee === undefined ? "" : String(property.guaranteeFee ?? ""),
+    fire_insurance_text: property.fireInsurance === undefined ? "" : String(property.fireInsurance ?? ""),
+    key_exchange_text: property.keyExchange === undefined ? "" : String(property.keyExchange ?? ""),
+    other_fee_text: JSON.stringify({
+      otherFees: numberOrNull(property.otherFees),
+      support24: numberOrNull(property.support24),
+      disinfection: numberOrNull(property.disinfection),
+      cleaningFee: numberOrNull(property.cleaningFee)
+    }),
+    area_text: property.area === undefined ? "" : String(property.area ?? ""),
+    area_value: numberOrNull(property.area),
+    nearest_station: property.nearestStation || "",
+    station_walk_text: property.walkMinutes === undefined ? "" : String(property.walkMinutes ?? ""),
+    station_walk_value: numberOrNull(property.walkMinutes),
+    destination_name: state.settings.targetStation || "",
+    destination_duration_text: property.commuteMinutes === undefined ? "" : String(property.commuteMinutes ?? ""),
+    destination_duration_value: numberOrNull(property.commuteMinutes),
+    destination_distance_text: "",
+    destination_distance_value: null,
+    destination_transport_memo: "",
+    age_text: property.buildingAge === undefined ? "" : String(property.buildingAge ?? ""),
+    age_value: numberOrNull(property.buildingAge),
+    free_rent_text: property.freeRentMonths === undefined ? "" : String(property.freeRentMonths ?? ""),
+    floor_text: property.floor === undefined ? "" : String(property.floor ?? ""),
+    bath_toilet_separate: property.bathToiletSeparate === "yes",
+    second_floor_or_more: Number(property.floor || 0) >= 2,
+    property_url: property.sourceUrl || "",
+    memo: property.memo || "",
+    favorite: false,
+    status: JSON.stringify({
+      support24: numberOrNull(property.support24),
+      disinfection: numberOrNull(property.disinfection),
+      cleaningFee: numberOrNull(property.cleaningFee),
+      estimateDate: property.estimateDate || "",
+      visitDate: property.visitDate || "",
+      createdAt: property.createdAt || null
+    })
+  };
+}
+
+function mapRemoteToProperty(row) {
+  const extras = parseJsonValue(row.status);
+  const fees = parseJsonValue(row.other_fee_text);
+  return {
+    id: row.id,
+    name: row.title || "",
+    agency: row.real_estate_company || "",
+    sourceUrl: row.property_url || "",
+    nearestStation: row.nearest_station || "",
+    walkMinutes: row.station_walk_value ?? row.station_walk_text ?? "",
+    rent: row.monthly_rent_value ?? row.monthly_rent_text ?? "",
+    maintenanceFee: row.management_fee_value ?? row.management_fee_text ?? "",
+    deposit: row.deposit_text || "",
+    keyMoney: row.key_money_text || "",
+    brokerFee: row.brokerage_fee_text || "",
+    guaranteeFee: row.guarantor_fee_text || "",
+    fireInsurance: row.fire_insurance_text || "",
+    keyExchange: row.key_exchange_text || "",
+    support24: fees.support24 ?? extras.support24 ?? "",
+    disinfection: fees.disinfection ?? extras.disinfection ?? "",
+    cleaningFee: fees.cleaningFee ?? extras.cleaningFee ?? "",
+    otherFees: fees.otherFees ?? "",
+    freeRentMonths: row.free_rent_text || "",
+    area: row.area_value ?? row.area_text ?? "",
+    buildingAge: row.age_value ?? row.age_text ?? "",
+    floor: row.floor_text || "",
+    commuteMinutes: row.destination_duration_value ?? row.destination_duration_text ?? "",
+    estimateDate: extras.estimateDate || "",
+    visitDate: extras.visitDate || "",
+    bathToiletSeparate: row.bath_toilet_separate ? "yes" : "no",
+    memo: row.memo || "",
+    images: [],
+    createdAt: extras.createdAt || Date.parse(row.created_at) || Date.now()
+  };
+}
+
+function mapTaskToRemote(task, sharedSpaceId) {
+  return {
+    id: task.id || crypto.randomUUID(),
+    shared_space_id: sharedSpaceId,
+    title: task.title || "",
+    category: task.category || "",
+    detail: task.notes || "",
+    due_date: task.dueDate || null,
+    completed: Boolean(task.completed),
+    highlight_days_before: numberOrNull(task.alertStartDays),
+    warning_days_before: numberOrNull(task.warningDays)
+  };
+}
+
+function mapRemoteToTask(row) {
+  return normalizeTask({
+    id: row.id,
+    title: row.title || "",
+    category: row.category || "",
+    notes: row.detail || "",
+    dueDate: row.due_date || "",
+    completed: Boolean(row.completed),
+    alertStartDays: row.highlight_days_before ?? 7,
+    warningDays: row.warning_days_before ?? 3,
+    autoGenerated: false,
+    createdAt: Date.parse(row.created_at) || Date.now()
+  });
+}
+
+function mapPurchaseToRemote(purchase, sharedSpaceId) {
+  return {
+    id: purchase.id || crypto.randomUUID(),
+    shared_space_id: sharedSpaceId,
+    title: purchase.name || "",
+    category: purchase.category || "",
+    amount_text: purchase.amount === undefined ? "" : String(purchase.amount ?? ""),
+    amount_value: numberOrNull(purchase.amount),
+    memo: purchase.note || ""
+  };
+}
+
+function mapRemoteToPurchase(row) {
+  return {
+    id: row.id,
+    name: row.title || "",
+    category: row.category || "",
+    amount: row.amount_value ?? row.amount_text ?? "",
+    plannedDate: "",
+    note: row.memo || "",
+    createdAt: Date.parse(row.created_at) || Date.now()
+  };
+}
+
+function mapNoteToRemote(note, sharedSpaceId) {
+  return {
+    id: note.id || crypto.randomUUID(),
+    shared_space_id: sharedSpaceId,
+    title: note.title || "",
+    body: note.content || "",
+    color: note.color || "#274c77",
+    text_size: note.fontSize || "md",
+    collapsed: note.id !== openNoteId
+  };
+}
+
+function mapRemoteToNote(row) {
+  return {
+    id: row.id,
+    title: row.title || "",
+    content: row.body || "",
+    color: row.color || "#274c77",
+    fontSize: row.text_size || "md",
+    createdAt: Date.parse(row.created_at) || Date.now()
+  };
+}
+
+async function syncCollection(tableName, rows) {
+  if (!remoteState.client || !remoteState.sharedSpace?.id) return;
+  if (rows.length) {
+    const { error: upsertError } = await remoteState.client.from(tableName).upsert(rows, { onConflict: "id" });
+    if (upsertError) throw upsertError;
+  }
+
+  let deleteQuery = remoteState.client.from(tableName).delete().eq("shared_space_id", remoteState.sharedSpace.id);
+  if (rows.length) deleteQuery = deleteQuery.not("id", "in", toInFilter(rows.map((row) => row.id)));
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) throw deleteError;
+}
+
+async function syncRemoteStateNow() {
+  if (remoteState.syncInFlight) {
+    remoteState.pendingSync = true;
+    return;
+  }
+  if (!remoteState.sharedSpace?.id || !remoteState.client) return;
+  if (!navigator.onLine) {
+    setRemoteStatus("オフラインのためローカル保存中", "warning");
+    return;
+  }
+
+  remoteState.syncInFlight = true;
+  setRemoteStatus("共有スペースに同期中", "info");
+
+  try {
+    const snapshot = sharedCollectionsSnapshot();
+    await syncCollection(
+      "properties",
+      snapshot.properties.map((property) => mapPropertyToRemote(property, remoteState.sharedSpace.id))
+    );
+    await syncCollection("tasks", snapshot.tasks.map((task) => mapTaskToRemote(task, remoteState.sharedSpace.id)));
+    await syncCollection(
+      "purchases",
+      snapshot.purchases.map((purchase) => mapPurchaseToRemote(purchase, remoteState.sharedSpace.id))
+    );
+    await syncCollection("notes", snapshot.notes.map((note) => mapNoteToRemote(note, remoteState.sharedSpace.id)));
+    await remoteState.client
+      .from("shared_spaces")
+      .update({ name: remoteState.sharedSpace.name || remoteState.sharedSpace.slug })
+      .eq("id", remoteState.sharedSpace.id);
+    remoteState.lastSyncedAt = new Date().toISOString();
+    saveSharedSpaceMeta();
+    setRemoteStatus("共有スペースと同期済み", "success");
+  } catch (error) {
+    console.error(error);
+    setRemoteStatus(`同期失敗: ${describeRemoteError(error)}`, "danger");
+  } finally {
+    remoteState.syncInFlight = false;
+    if (remoteState.pendingSync) {
+      remoteState.pendingSync = false;
+      scheduleRemoteSync();
+    }
+  }
+}
+
+function scheduleRemoteSync() {
+  if (!remoteState.sharedSpace?.id || !remoteState.client) return;
+  clearTimeout(remoteState.syncTimer);
+  remoteState.syncTimer = setTimeout(() => {
+    void syncRemoteStateNow();
+  }, SHARED_SYNC_DELAY_MS);
+}
+
+async function fetchSharedBundle(sharedSpaceId) {
+  const client = remoteState.client;
+  const [propertiesResult, tasksResult, purchasesResult, notesResult] = await Promise.all([
+    client.from("properties").select("*").eq("shared_space_id", sharedSpaceId).order("updated_at", { ascending: false }),
+    client.from("tasks").select("*").eq("shared_space_id", sharedSpaceId).order("updated_at", { ascending: false }),
+    client.from("purchases").select("*").eq("shared_space_id", sharedSpaceId).order("updated_at", { ascending: false }),
+    client.from("notes").select("*").eq("shared_space_id", sharedSpaceId).order("updated_at", { ascending: false })
+  ]);
+
+  const firstError = [propertiesResult.error, tasksResult.error, purchasesResult.error, notesResult.error].find(Boolean);
+  if (firstError) throw firstError;
+
+  return {
+    properties: (propertiesResult.data || []).map(mapRemoteToProperty),
+    tasks: (tasksResult.data || []).map(mapRemoteToTask),
+    purchases: (purchasesResult.data || []).map(mapRemoteToPurchase),
+    notes: (notesResult.data || []).map(mapRemoteToNote)
+  };
+}
+
+function applySharedBundle(bundle) {
+  state = {
+    ...state,
+    properties: bundle.properties || [],
+    tasks: bundle.tasks || [],
+    purchases: bundle.purchases || [],
+    notes: bundle.notes || []
+  };
+  openNoteId = "";
+  saveState({ syncRemote: false });
+  renderAll();
+}
+
+async function findSharedSpace({ slug, accessCode }) {
+  if (!remoteState.client) throw new Error("Supabase client is not ready");
+  if (slug) {
+    const { data, error } = await remoteState.client.from("shared_spaces").select("*").eq("slug", slug).maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+  if (accessCode) {
+    const { data, error } = await remoteState.client
+      .from("shared_spaces")
+      .select("*")
+      .eq("access_code", accessCode)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+  return null;
+}
+
+function fillSharedSpaceForm(sharedSpace = remoteState.sharedSpace) {
+  const nameInput = document.getElementById("sharedSpaceName");
+  const slugInput = document.getElementById("sharedSpaceSlug");
+  const codeInput = document.getElementById("sharedSpaceAccessCode");
+  if (!nameInput || !slugInput || !codeInput) return;
+  nameInput.value = sharedSpace?.name || "";
+  slugInput.value = sharedSpace?.slug || "";
+  codeInput.value = sharedSpace?.accessCode || "";
+}
+
+function renderSharedSpaceStatus() {
+  const currentName = document.getElementById("sharedSpaceCurrentName");
+  const currentSlug = document.getElementById("sharedSpaceCurrentSlug");
+  const status = document.getElementById("sharedSpaceStatus");
+  const lastSync = document.getElementById("sharedSpaceLastSync");
+  const hint = document.getElementById("sharedSpaceHint");
+  if (!currentName || !currentSlug || !status || !lastSync || !hint) return;
+
+  currentName.textContent = remoteState.sharedSpace?.name || "未接続";
+  currentSlug.textContent = remoteState.sharedSpace?.slug ? `slug: ${remoteState.sharedSpace.slug}` : "slug未設定";
+  status.textContent = remoteState.status;
+  status.className = `property-title status-${remoteState.tone}`;
+  lastSync.textContent = `最終同期: ${formatDateTime(remoteState.lastSyncedAt)}`;
+
+  if (!canUseSupabase()) {
+    hint.textContent = "config.js に SUPABASE_URL / SUPABASE_ANON_KEY を設定すると共有できます。";
+  } else if (!navigator.onLine) {
+    hint.textContent = "現在オフラインです。変更はこの端末のローカルに保持され、オンライン復帰後に再同期できます。";
+  } else if (remoteState.sharedSpace?.id) {
+    hint.textContent = "接続中の共有スペースに自動同期します。必要ならローカルデータを手動で反映できます。";
+  } else {
+    hint.textContent = "slug または共有コードを入力すると、2人で同じデータを共有できます。";
+  }
+}
+
+async function connectSharedSpace({ slug, accessCode, name }, options = {}) {
+  if (!canUseSupabase()) {
+    setRemoteStatus("Supabase未設定のためローカル保存のみ", "warning");
+    return;
+  }
+
+  remoteState.sharedSpace = {
+    ...remoteState.sharedSpace,
+    slug: slug || "",
+    accessCode: accessCode || "",
+    name: name || remoteState.sharedSpace.name || ""
+  };
+  refreshSupabaseClient(remoteState.sharedSpace);
+  setRemoteStatus("共有スペースに接続中", "info");
+
+  const sharedSpace = await findSharedSpace(remoteState.sharedSpace);
+  if (!sharedSpace) throw new Error("shared_space が見つかりません");
+
+  remoteState.sharedSpace = {
+    id: sharedSpace.id,
+    name: sharedSpace.name,
+    slug: sharedSpace.slug,
+    accessCode: accessCode || sharedSpace.access_code || ""
+  };
+  refreshSupabaseClient(remoteState.sharedSpace);
+  saveSharedSpaceMeta();
+  fillSharedSpaceForm(remoteState.sharedSpace);
+
+  const bundle = await fetchSharedBundle(sharedSpace.id);
+  applySharedBundle(bundle);
+  remoteState.lastSyncedAt = new Date().toISOString();
+  setRemoteStatus("共有スペースに接続済み", "success");
+
+  if (!options.skipSyncAfterConnect && !bundle.properties.length && !bundle.tasks.length && !bundle.purchases.length && !bundle.notes.length) {
+    scheduleRemoteSync();
+  }
+}
+
+async function createSharedSpace() {
+  const name = document.getElementById("sharedSpaceName").value.trim();
+  const slug = document.getElementById("sharedSpaceSlug").value.trim();
+  const accessCode = document.getElementById("sharedSpaceAccessCode").value.trim() || crypto.randomUUID().slice(0, 8);
+
+  if (!slug) {
+    alert("shared_space の slug を入力してください");
+    return;
+  }
+  if (!canUseSupabase()) {
+    alert("config.js に Supabase の設定が必要です");
+    return;
+  }
+
+  remoteState.sharedSpace = { id: "", name: name || slug, slug, accessCode };
+  refreshSupabaseClient(remoteState.sharedSpace);
+  setRemoteStatus("共有スペースを作成中", "info");
+
+  const { data, error } = await remoteState.client
+    .from("shared_spaces")
+    .insert({
+      name: name || slug,
+      slug,
+      access_code: accessCode
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  remoteState.sharedSpace = {
+    id: data.id,
+    name: data.name,
+    slug: data.slug,
+    accessCode
+  };
+  refreshSupabaseClient(remoteState.sharedSpace);
+  saveSharedSpaceMeta();
+  fillSharedSpaceForm(remoteState.sharedSpace);
+  await syncRemoteStateNow();
+}
+
+function disconnectSharedSpace() {
+  remoteState.sharedSpace = { id: "", name: "", slug: "", accessCode: "" };
+  remoteState.lastSyncedAt = "";
+  clearTimeout(remoteState.syncTimer);
+  refreshSupabaseClient(remoteState.sharedSpace);
+  saveSharedSpaceMeta();
+  fillSharedSpaceForm(remoteState.sharedSpace);
+  setRemoteStatus("ローカル保存のみ", "muted");
+}
+
+async function pushLocalDataToSharedSpace() {
+  if (!remoteState.sharedSpace?.id) {
+    alert("先に共有スペースへ接続してください");
+    return;
+  }
+  await syncRemoteStateNow();
+}
+
+async function initializeSharedSpace() {
+  fillSharedSpaceForm(remoteState.sharedSpace);
+  renderSharedSpaceStatus();
+
+  if (!canUseSupabase()) {
+    setRemoteStatus("Supabase未設定のためローカル保存のみ", "warning");
+    return;
+  }
+
+  refreshSupabaseClient(remoteState.sharedSpace);
+  if (!remoteState.sharedSpace.slug && !remoteState.sharedSpace.accessCode) {
+    setRemoteStatus("共有スペース未接続", "muted");
+    return;
+  }
+
+  try {
+    await connectSharedSpace(remoteState.sharedSpace, { skipSyncAfterConnect: true });
+  } catch (error) {
+    console.error(error);
+    setRemoteStatus(`再接続失敗: ${describeRemoteError(error)}`, "danger");
+  }
+}
+
 async function onPropertySubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1255,7 +1830,7 @@ async function onPropertySubmit(event) {
     : [payload, ...state.properties];
 
   currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
-  saveState();
+  saveState({ syncRemote: true });
   resetForm("propertyForm");
   document.getElementById("assistUrlInput").value = "";
   document.getElementById("assistSourceLabel").value = "";
@@ -1279,7 +1854,7 @@ function onTaskSubmit(event) {
     ? state.tasks.map((task) => (task.id === values.id ? payload : task))
     : [payload, ...state.tasks];
 
-  saveState();
+  saveState({ syncRemote: true });
   resetForm("taskForm");
   renderAll();
 }
@@ -1299,7 +1874,7 @@ function onPurchaseSubmit(event) {
     ? state.purchases.map((purchase) => (purchase.id === values.id ? payload : purchase))
     : [payload, ...state.purchases];
 
-  saveState();
+  saveState({ syncRemote: true });
   resetForm("purchaseForm");
   renderAll();
 }
@@ -1319,7 +1894,7 @@ function onNoteSubmit(event) {
     ? state.notes.map((note) => (note.id === values.id ? payload : note))
     : [payload, ...state.notes];
 
-  saveState();
+  saveState({ syncRemote: true });
   resetForm("noteForm");
   renderAll();
 }
@@ -1329,7 +1904,7 @@ function onSettingsSubmit(event) {
   const values = formDataToObject(event.currentTarget);
   state.settings.movingDate = values.movingDate;
   state.settings.targetStation = values.targetStation;
-  saveState();
+  saveState({ syncRemote: false });
   renderAll();
 }
 
@@ -1342,14 +1917,14 @@ function onFilterSubmit(event) {
     nextFilters[field.name] = field.type === "checkbox" ? input.checked : input.value;
   });
   state.settings.propertyFilters = nextFilters;
-  saveState();
+  saveState({ syncRemote: false });
   renderAll();
 }
 
 function resetSeedData() {
   state = structuredClone(defaultData);
   currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
-  saveState();
+  saveState({ syncRemote: true });
   renderAll();
 }
 
@@ -1379,7 +1954,7 @@ function generateSuggestedTasks() {
   });
 
   state.tasks = [...generated, ...retained];
-  saveState();
+  saveState({ syncRemote: true });
   renderAll();
 }
 
@@ -1401,7 +1976,7 @@ function editEntity(collectionName, id, formId, fields) {
 
 function deleteEntity(collectionName, id) {
   state[collectionName] = state[collectionName].filter((item) => item.id !== id);
-  saveState();
+  saveState({ syncRemote: true });
   renderAll();
 }
 
@@ -1519,7 +2094,7 @@ function handleQuickFilterToggle(event) {
   if (!button) return;
   const key = button.dataset.filterKey;
   state.settings.propertyFilters[key] = !state.settings.propertyFilters[key];
-  saveState();
+  saveState({ syncRemote: false });
   renderAll();
 }
 
@@ -1543,7 +2118,7 @@ function importJsonFile(file) {
         notes: parsed.notes || []
       };
       currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
-      saveState();
+      saveState({ syncRemote: true });
       renderAll();
     } catch (error) {
       console.error(error);
@@ -1581,7 +2156,7 @@ function handleListActions(event) {
   }
   if (action === "toggle-task") {
     state.tasks = state.tasks.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task));
-    saveState();
+    saveState({ syncRemote: true });
     renderAll();
   }
 }
@@ -1604,6 +2179,20 @@ function registerEvents() {
   document.getElementById("noteForm").addEventListener("submit", onNoteSubmit);
   document.getElementById("settingsForm").addEventListener("submit", onSettingsSubmit);
   document.getElementById("propertyFilterForm").addEventListener("submit", onFilterSubmit);
+  document.getElementById("sharedSpaceForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const values = formDataToObject(event.currentTarget);
+    try {
+      await connectSharedSpace({
+        name: values.sharedSpaceName.trim(),
+        slug: values.sharedSpaceSlug.trim(),
+        accessCode: values.sharedSpaceAccessCode.trim()
+      });
+    } catch (error) {
+      console.error(error);
+      setRemoteStatus(`接続失敗: ${describeRemoteError(error)}`, "danger");
+    }
+  });
 
   document.getElementById("resetPropertyForm").addEventListener("click", () => resetForm("propertyForm"));
   document.getElementById("resetTaskForm").addEventListener("click", () => resetForm("taskForm"));
@@ -1611,13 +2200,13 @@ function registerEvents() {
   document.getElementById("resetNoteForm").addEventListener("click", () => resetForm("noteForm"));
   document.getElementById("resetFilters").addEventListener("click", () => {
     state.settings.propertyFilters = structuredClone(defaultData.settings.propertyFilters);
-    saveState();
+    saveState({ syncRemote: false });
     renderAll();
   });
 
   document.getElementById("sortKey").addEventListener("change", (event) => {
     state.settings.propertySort = event.target.value;
-    saveState();
+    saveState({ syncRemote: false });
     renderAll();
   });
 
@@ -1627,6 +2216,23 @@ function registerEvents() {
     if (event.target.id === "applyAssistCandidates") applyAssistCandidates();
   });
   document.getElementById("generateSuggestedTasks").addEventListener("click", generateSuggestedTasks);
+  document.getElementById("createSharedSpaceButton").addEventListener("click", async () => {
+    try {
+      await createSharedSpace();
+    } catch (error) {
+      console.error(error);
+      setRemoteStatus(`作成失敗: ${describeRemoteError(error)}`, "danger");
+    }
+  });
+  document.getElementById("pushLocalDataButton").addEventListener("click", async () => {
+    try {
+      await pushLocalDataToSharedSpace();
+    } catch (error) {
+      console.error(error);
+      setRemoteStatus(`反映失敗: ${describeRemoteError(error)}`, "danger");
+    }
+  });
+  document.getElementById("disconnectSharedSpaceButton").addEventListener("click", disconnectSharedSpace);
 
   document.getElementById("propertyList").addEventListener("click", handleListActions);
   document.getElementById("bestPropertyCard").addEventListener("click", handleListActions);
@@ -1645,7 +2251,7 @@ function registerEvents() {
   document.getElementById("themeToggleButton").addEventListener("click", () => {
     const nextTheme = state.settings.theme === "system" ? "dark" : state.settings.theme === "dark" ? "light" : "system";
     state.settings.theme = nextTheme;
-    saveState();
+    saveState({ syncRemote: false });
     applyTheme();
   });
   document.getElementById("exportJsonButton").addEventListener("click", exportJson);
@@ -1654,6 +2260,18 @@ function registerEvents() {
     const file = event.target.files?.[0];
     if (file) importJsonFile(file);
     event.target.value = "";
+  });
+
+  window.addEventListener("online", () => {
+    if (remoteState.sharedSpace?.id) {
+      setRemoteStatus("オンラインに復帰しました。同期を再開します", "success");
+      scheduleRemoteSync();
+    } else {
+      renderSharedSpaceStatus();
+    }
+  });
+  window.addEventListener("offline", () => {
+    setRemoteStatus("オフラインのためローカル保存中", "warning");
   });
 }
 
@@ -1669,4 +2287,5 @@ renderForms();
 registerEvents();
 applyTheme();
 renderAll();
+void initializeSharedSpace();
 registerPwa();

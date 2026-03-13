@@ -45,6 +45,48 @@
 
       <main>
         <section id="dashboard" class="panel is-active">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Shared Space</p>
+                <h2>共有スペース設定</h2>
+              </div>
+            </div>
+            <form id="sharedSpaceForm" class="form-grid compact-form">
+              <div class="field">
+                <label for="sharedSpaceName">共有スペース名</label>
+                <input id="sharedSpaceName" name="sharedSpaceName" type="text" placeholder="例: 2026-spring-move" />
+              </div>
+              <div class="field">
+                <label for="sharedSpaceSlug">slug</label>
+                <input id="sharedSpaceSlug" name="sharedSpaceSlug" type="text" placeholder="例: our-moving-plan" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="sharedSpaceAccessCode">共有コード</label>
+                <input id="sharedSpaceAccessCode" name="sharedSpaceAccessCode" type="text" placeholder="例: move-2026" autocomplete="off" />
+              </div>
+              <div class="field full form-actions">
+                <button id="connectSharedSpaceButton" class="primary-button" type="submit">接続する</button>
+                <button id="createSharedSpaceButton" class="secondary-button" type="button">新規作成</button>
+                <button id="pushLocalDataButton" class="ghost-button" type="button">ローカルを共有へ反映</button>
+                <button id="disconnectSharedSpaceButton" class="ghost-button" type="button">切断</button>
+              </div>
+            </form>
+            <div class="shared-space-meta">
+              <div class="summary-card compact-list-item">
+                <div class="summary-label">接続中</div>
+                <div id="sharedSpaceCurrentName" class="property-title">未接続</div>
+                <div id="sharedSpaceCurrentSlug" class="summary-sub">slug未設定</div>
+              </div>
+              <div class="summary-card compact-list-item">
+                <div class="summary-label">同期状態</div>
+                <div id="sharedSpaceStatus" class="property-title">ローカル保存のみ</div>
+                <div id="sharedSpaceLastSync" class="summary-sub">最終同期: 未同期</div>
+              </div>
+            </div>
+            <div id="sharedSpaceHint" class="info-strip">共有したい相手に slug または共有コードを渡すと、同じデータを開けます。</div>
+          </div>
+
           <div class="summary-grid" id="summaryCards"></div>
 
           <div class="card">
@@ -269,6 +311,11 @@
       </div>
     </template>
 
+    <script>
+      window.MOVING_MATE_CONFIG = window.MOVING_MATE_CONFIG || {};
+    </script>
+    <script src="./config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./app.js"></script>
   </body>
 </html>
