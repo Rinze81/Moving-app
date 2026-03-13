@@ -97,6 +97,33 @@ const PURCHASE_FIELDS = [
   { name: "note", label: "メモ", type: "textarea", full: true }
 ];
 
+const NOTE_FIELDS = [
+  { name: "id", type: "hidden" },
+  { name: "title", label: "タイトル", type: "text", required: true },
+  {
+    name: "color",
+    label: "色ラベル",
+    type: "select",
+    options: [
+      { value: "#274c77", label: "ブルー" },
+      { value: "#8a5a44", label: "ブラウン" },
+      { value: "#3d6b5c", label: "グリーン" },
+      { value: "#8b5f7a", label: "モーブ" }
+    ]
+  },
+  {
+    name: "fontSize",
+    label: "文字サイズ",
+    type: "select",
+    options: [
+      { value: "sm", label: "小" },
+      { value: "md", label: "中" },
+      { value: "lg", label: "大" }
+    ]
+  },
+  { name: "content", label: "本文", type: "textarea", full: true }
+];
+
 const FILTER_FIELDS = [
   { name: "maxInitialCost", label: "初期費用上限", type: "number" },
   { name: "maxMonthlyCost", label: "月額上限", type: "number" },
@@ -273,11 +300,13 @@ const defaultData = {
       note: "搬入幅を再確認",
       createdAt: Date.now()
     }
-  ]
+  ],
+  notes: []
 };
 
 let state = loadState();
 let currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
+let openNoteId = "";
 
 function loadState() {
   try {
@@ -298,7 +327,8 @@ function loadState() {
       },
       properties: parsed.properties || [],
       tasks: parsed.tasks || [],
-      purchases: parsed.purchases || []
+      purchases: parsed.purchases || [],
+      notes: parsed.notes || []
     };
   } catch (error) {
     console.error(error);
@@ -534,6 +564,7 @@ function renderForms() {
   const propertyForm = document.getElementById("propertyForm");
   const taskForm = document.getElementById("taskForm");
   const purchaseForm = document.getElementById("purchaseForm");
+  const noteForm = document.getElementById("noteForm");
   const filterForm = document.getElementById("propertyFilterForm");
 
   propertyForm.innerHTML = "";
@@ -547,6 +578,10 @@ function renderForms() {
   purchaseForm.innerHTML = "";
   PURCHASE_FIELDS.forEach((field) => purchaseForm.appendChild(createField(field)));
   purchaseForm.appendChild(makeSubmitRow("resetPurchaseForm", "出費を保存", "フォームをクリア"));
+
+  noteForm.innerHTML = "";
+  NOTE_FIELDS.forEach((field) => noteForm.appendChild(createField(field)));
+  noteForm.appendChild(makeSubmitRow("resetNoteForm", "メモを保存", "フォームをクリア"));
 
   filterForm.innerHTML = "";
   FILTER_FIELDS.forEach((field) => filterForm.appendChild(createField(field)));
@@ -998,6 +1033,50 @@ function renderPurchases() {
     .join("");
 }
 
+function renderNotes() {
+  const list = document.getElementById("noteList");
+  if (!state.notes.length) {
+    list.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+    return;
+  }
+
+  list.innerHTML = [...state.notes]
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+    .map(
+      (note) => {
+        const isOpen = note.id === openNoteId;
+        return `
+          <article class="list-item note-card note-size-${note.fontSize || "md"}${isOpen ? " is-open" : ""}" style="border-left: 6px solid ${note.color || "#274c77"}">
+            <button class="note-toggle" data-action="toggle-note" data-id="${note.id}" type="button" aria-expanded="${isOpen}">
+              <div>
+                <div class="property-title">${note.title}</div>
+                <div class="meta-row note-meta">
+                  <div class="tag" style="background:${note.color || "#274c77"}; color: #fff">ラベル</div>
+                  <div class="tag">作成 ${dateLabel(note.createdAt)}</div>
+                </div>
+              </div>
+              <span class="note-toggle-icon">${isOpen ? "−" : "+"}</span>
+            </button>
+            ${
+              isOpen
+                ? `
+                  <div class="note-card-body">
+                    <p class="note">${note.content || "メモなし"}</p>
+                    <div class="item-actions">
+                      <button class="mini-button" data-action="edit-note" data-id="${note.id}" type="button">編集</button>
+                      <button class="mini-button" data-action="delete-note" data-id="${note.id}" type="button">削除</button>
+                    </div>
+                  </div>
+                `
+                : ""
+            }
+          </article>
+        `;
+      }
+    )
+    .join("");
+}
+
 function renderAssistPanel() {
   const summary = document.getElementById("assistSummary");
   const bits = [];
@@ -1042,6 +1121,7 @@ function renderAll() {
   renderProperties();
   renderTasks();
   renderPurchases();
+  renderNotes();
   renderAssistPanel();
 }
 
@@ -1224,6 +1304,26 @@ function onPurchaseSubmit(event) {
   renderAll();
 }
 
+function onNoteSubmit(event) {
+  event.preventDefault();
+  const values = formDataToObject(event.currentTarget);
+  const existing = state.notes.find((note) => note.id === values.id);
+  const payload = {
+    ...existing,
+    ...values,
+    id: values.id || crypto.randomUUID(),
+    createdAt: existing?.createdAt || Date.now()
+  };
+
+  state.notes = values.id
+    ? state.notes.map((note) => (note.id === values.id ? payload : note))
+    : [payload, ...state.notes];
+
+  saveState();
+  resetForm("noteForm");
+  renderAll();
+}
+
 function onSettingsSubmit(event) {
   event.preventDefault();
   const values = formDataToObject(event.currentTarget);
@@ -1295,6 +1395,7 @@ function editEntity(collectionName, id, formId, fields) {
   if (formId === "taskForm") switchTab("tasks");
   if (formId === "propertyForm") switchTab("properties");
   if (formId === "purchaseForm") switchTab("purchases");
+  if (formId === "noteForm") switchTab("notes");
   focusForm(formId);
 }
 
@@ -1438,7 +1539,8 @@ function importJsonFile(file) {
         },
         properties: parsed.properties || [],
         tasks: parsed.tasks || [],
-        purchases: parsed.purchases || []
+        purchases: parsed.purchases || [],
+        notes: parsed.notes || []
       };
       currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
       saveState();
@@ -1456,6 +1558,13 @@ function handleListActions(event) {
   if (!target) return;
   const { action, id } = target.dataset;
 
+  if (action === "toggle-note") {
+    if (event.type !== "click") return;
+    openNoteId = openNoteId === id ? "" : id;
+    renderNotes();
+    return;
+  }
+
   if (action === "toggle-task" && event.type !== "change") return;
   if (action !== "toggle-task" && event.type !== "click") return;
 
@@ -1465,6 +1574,11 @@ function handleListActions(event) {
   if (action === "delete-task") deleteEntity("tasks", id);
   if (action === "edit-purchase") editEntity("purchases", id, "purchaseForm", PURCHASE_FIELDS);
   if (action === "delete-purchase") deleteEntity("purchases", id);
+  if (action === "edit-note") editEntity("notes", id, "noteForm", NOTE_FIELDS);
+  if (action === "delete-note") {
+    if (openNoteId === id) openNoteId = "";
+    deleteEntity("notes", id);
+  }
   if (action === "toggle-task") {
     state.tasks = state.tasks.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task));
     saveState();
@@ -1487,12 +1601,14 @@ function registerEvents() {
   document.getElementById("propertyForm").addEventListener("submit", onPropertySubmit);
   document.getElementById("taskForm").addEventListener("submit", onTaskSubmit);
   document.getElementById("purchaseForm").addEventListener("submit", onPurchaseSubmit);
+  document.getElementById("noteForm").addEventListener("submit", onNoteSubmit);
   document.getElementById("settingsForm").addEventListener("submit", onSettingsSubmit);
   document.getElementById("propertyFilterForm").addEventListener("submit", onFilterSubmit);
 
   document.getElementById("resetPropertyForm").addEventListener("click", () => resetForm("propertyForm"));
   document.getElementById("resetTaskForm").addEventListener("click", () => resetForm("taskForm"));
   document.getElementById("resetPurchaseForm").addEventListener("click", () => resetForm("purchaseForm"));
+  document.getElementById("resetNoteForm").addEventListener("click", () => resetForm("noteForm"));
   document.getElementById("resetFilters").addEventListener("click", () => {
     state.settings.propertyFilters = structuredClone(defaultData.settings.propertyFilters);
     saveState();
@@ -1520,6 +1636,7 @@ function registerEvents() {
   document.getElementById("taskGroups").addEventListener("change", handleListActions);
   document.getElementById("purchaseList").addEventListener("click", handleListActions);
   document.getElementById("purchaseSummaryList").addEventListener("click", handleListActions);
+  document.getElementById("noteList").addEventListener("click", handleListActions);
 
   document.getElementById("exportPropertyCsv").addEventListener("click", exportProperties);
   document.getElementById("exportTaskCsv").addEventListener("click", exportTasks);

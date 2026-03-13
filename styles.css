@@ -134,7 +134,7 @@ button {
   bottom: 12px;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   padding: 8px;
   border: 1px solid var(--line);
@@ -498,6 +498,60 @@ th {
   margin-top: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.note-card {
+  padding-left: 16px;
+}
+
+.note-card.is-open {
+  background: color-mix(in srgb, var(--brand-soft) 40%, var(--surface-strong));
+}
+
+.note-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.note-toggle-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--bg-accent);
+  color: var(--brand-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.note-meta {
+  margin-top: 6px;
+}
+
+.note-card-body {
+  margin-top: 12px;
+}
+
+.note-size-sm .note {
+  font-size: 13px;
+}
+
+.note-size-md .note {
+  font-size: 15px;
+}
+
+.note-size-lg .note {
+  font-size: 17px;
 }
 
 .gallery {

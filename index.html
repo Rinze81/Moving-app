@@ -40,6 +40,7 @@
         <button class="tab" data-target="properties" type="button">物件比較</button>
         <button class="tab" data-target="tasks" type="button">タスク</button>
         <button class="tab" data-target="purchases" type="button">費用</button>
+        <button class="tab" data-target="notes" type="button">メモ</button>
       </nav>
 
       <main>
@@ -235,6 +236,28 @@
               <button id="exportPurchaseCsv" class="ghost-button" type="button">CSV出力</button>
             </div>
             <div id="purchaseList" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section id="notes" class="panel">
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Notes</p>
+                <h2>メモを追加・編集</h2>
+              </div>
+            </div>
+            <form id="noteForm" class="form-grid compact-form"></form>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Notebook</p>
+                <h2>保存済みメモ</h2>
+              </div>
+            </div>
+            <div id="noteList" class="stack-list"></div>
           </div>
         </section>
       </main>
