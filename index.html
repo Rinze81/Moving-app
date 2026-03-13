@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f7f4ee" />
+    <meta name="theme-color" content="#f4efe7" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta
@@ -25,6 +25,7 @@
           </p>
         </div>
         <div class="hero-actions">
+          <button id="themeToggleButton" class="ghost-button theme-toggle" type="button" aria-pressed="false">System</button>
           <button id="seedDataButton" class="secondary-button" type="button">ダミーデータ再投入</button>
           <button id="exportJsonButton" class="ghost-button" type="button">JSON書き出し</button>
           <label class="ghost-button file-button">
@@ -37,7 +38,7 @@
       <nav class="tabbar" aria-label="主要セクション">
         <button class="tab is-active" data-target="dashboard" type="button">概要</button>
         <button class="tab" data-target="properties" type="button">物件比較</button>
-        <button class="tab" data-target="tasks" type="button">やること</button>
+        <button class="tab" data-target="tasks" type="button">タスク</button>
         <button class="tab" data-target="purchases" type="button">費用</button>
       </nav>
 
@@ -49,7 +50,7 @@
             <div class="section-heading">
               <div>
                 <p class="section-kicker">Moving Day</p>
-                <h2>引っ越し日と基準駅</h2>
+                <h2>引っ越し日と目的地</h2>
               </div>
             </div>
             <form id="settingsForm" class="form-grid compact-form">
@@ -58,8 +59,8 @@
                 <input id="movingDate" name="movingDate" type="date" />
               </div>
               <div class="field">
-                <label for="targetStation">比較したい駅</label>
-                <input id="targetStation" name="targetStation" type="text" placeholder="例: 新宿" />
+                <label for="targetStation">目的地</label>
+                <input id="targetStation" name="targetStation" type="text" placeholder="例: 勤務先 / 新宿 / 実家" />
               </div>
               <div class="field full form-actions">
                 <button class="primary-button" type="submit">設定を保存</button>
@@ -89,6 +90,16 @@
               </div>
             </div>
             <div id="upcomingTasks" class="stack-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Spend</p>
+                <h2>購入予定の確認</h2>
+              </div>
+            </div>
+            <div id="purchaseSummaryList" class="stack-list"></div>
           </div>
         </section>
 

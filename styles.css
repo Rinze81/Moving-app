@@ -1,24 +1,50 @@
 :root {
-  --bg: #f3efe7;
-  --bg-accent: #e5ddd0;
-  --surface: rgba(255, 252, 247, 0.88);
+  --bg: #f4efe7;
+  --bg-elevated: #fbf8f3;
+  --bg-accent: #e7edf4;
+  --surface: rgba(255, 252, 248, 0.92);
   --surface-strong: #fffdf9;
-  --ink: #24211d;
-  --muted: #6c6459;
-  --line: rgba(61, 50, 37, 0.12);
-  --line-strong: rgba(61, 50, 37, 0.22);
-  --brand: #154c79;
-  --brand-soft: #dce8f2;
-  --accent: #a5632a;
-  --warning: #9c6b16;
-  --danger: #8c413b;
-  --success: #2d6a4f;
-  --shadow: 0 16px 40px rgba(66, 49, 25, 0.08);
-  --radius-lg: 24px;
+  --surface-soft: #f7f2ea;
+  --ink: #1f2833;
+  --muted: #5f6b78;
+  --line: rgba(53, 66, 82, 0.11);
+  --line-strong: rgba(53, 66, 82, 0.2);
+  --brand: #274c77;
+  --brand-strong: #1f3d60;
+  --brand-on: #f7fafc;
+  --brand-soft: rgba(39, 76, 119, 0.12);
+  --warning: #9b6a25;
+  --danger: #a34c45;
+  --success: #2f6a58;
+  --shadow: 0 18px 42px rgba(35, 48, 64, 0.08);
+  --shadow-soft: 0 10px 26px rgba(35, 48, 64, 0.06);
+  --radius-lg: 26px;
   --radius-md: 18px;
   --radius-sm: 12px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-family: "Aptos", "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --bg: #1b2128;
+  --bg-elevated: #222a33;
+  --bg-accent: #2a3440;
+  --surface: rgba(31, 38, 47, 0.92);
+  --surface-strong: #26313c;
+  --surface-soft: #202933;
+  --ink: #edf2f7;
+  --muted: #aab6c3;
+  --line: rgba(219, 228, 240, 0.1);
+  --line-strong: rgba(219, 228, 240, 0.18);
+  --brand: #9fbedf;
+  --brand-strong: #c3d9ee;
+  --brand-on: #17212b;
+  --brand-soft: rgba(159, 190, 223, 0.14);
+  --warning: #d0a15d;
+  --danger: #d48680;
+  --success: #7fb79e;
+  --shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
+  --shadow-soft: 0 12px 28px rgba(0, 0, 0, 0.2);
 }
 
 * {
@@ -27,14 +53,20 @@
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(21, 76, 121, 0.11), transparent 34%),
-    linear-gradient(180deg, #f8f5ef 0%, var(--bg) 100%);
+    radial-gradient(circle at top left, rgba(39, 76, 119, 0.1), transparent 32%),
+    linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
   color: var(--ink);
+  transition: background 180ms ease, color 180ms ease;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  background: transparent;
+}
+
+.theme-toggle {
+  min-width: 72px;
 }
 
 button,
@@ -58,12 +90,13 @@ button {
 .hero {
   display: grid;
   gap: 16px;
-  padding: 20px;
-  border-radius: 30px;
+  padding: 22px;
+  border-radius: 28px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.92)),
-    linear-gradient(135deg, rgba(220, 232, 242, 0.6), rgba(229, 221, 208, 0.6));
-  box-shadow: var(--shadow);
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-strong) 90%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--brand-soft) 92%, transparent), transparent 52%);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
   margin-bottom: 16px;
 }
 
@@ -93,6 +126,7 @@ button {
   margin: 10px 0 0;
   color: var(--muted);
   line-height: 1.6;
+  font-size: 15px;
 }
 
 .tabbar {
@@ -105,9 +139,9 @@ button {
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: rgba(255, 250, 243, 0.92);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--shadow);
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-soft);
   margin: 0 0 18px;
 }
 
@@ -117,11 +151,16 @@ button {
   background: transparent;
   color: var(--muted);
   font-weight: 700;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .tab.is-active {
-  background: var(--brand);
-  color: white;
+  background: var(--brand-strong);
+  color: var(--brand-on);
+}
+
+.tab:hover {
+  transform: translateY(-1px);
 }
 
 .panel {
@@ -135,10 +174,18 @@ button {
 
 .card {
   background: var(--surface);
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 18px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
+  scroll-margin-top: 18px;
+}
+
+.form-spotlight {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent),
+    var(--shadow-soft);
+  transition: box-shadow 0.25s ease;
 }
 
 .section-heading {
@@ -168,7 +215,7 @@ button {
 }
 
 .summary-card {
-  padding: 16px;
+  padding: 18px;
 }
 
 .summary-label {
@@ -178,8 +225,9 @@ button {
 }
 
 .summary-value {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .summary-sub {
@@ -191,7 +239,7 @@ button {
 .highlight-card {
   padding: 18px;
   margin-bottom: 14px;
-  background: linear-gradient(135deg, rgba(220, 232, 242, 0.7), rgba(255, 253, 249, 1));
+  background: linear-gradient(140deg, color-mix(in srgb, var(--brand-soft) 100%, var(--surface-strong)), var(--surface-strong));
 }
 
 .comparison-table {
@@ -230,6 +278,10 @@ th {
   padding: 14px;
 }
 
+.compact-list-item {
+  padding: 12px 14px;
+}
+
 .property-header,
 .purchase-header,
 .task-row,
@@ -243,6 +295,7 @@ th {
 .property-title,
 .group-title {
   font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .meta-row,
@@ -273,9 +326,9 @@ th {
 }
 
 .chip.is-active {
-  background: var(--brand);
-  color: white;
-  border-color: var(--brand);
+  background: var(--brand-strong);
+  color: var(--brand-on);
+  border-color: var(--brand-strong);
 }
 
 .status-tag.done {
@@ -324,7 +377,7 @@ th {
 .field label {
   font-size: 13px;
   font-weight: 700;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 74%, var(--muted));
 }
 
 .field input,
@@ -334,8 +387,24 @@ th {
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid var(--line-strong);
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--surface-strong) 94%, var(--bg));
   color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 86%, transparent);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--brand) 48%, var(--line-strong));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--brand-soft) 82%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .field textarea {
@@ -357,6 +426,14 @@ th {
   flex-wrap: wrap;
 }
 
+.summary-actions {
+  margin-top: 10px;
+}
+
+.table-actions {
+  min-width: 112px;
+}
+
 .primary-button,
 .secondary-button,
 .ghost-button,
@@ -364,23 +441,31 @@ th {
   padding: 12px 14px;
   border-radius: 14px;
   font-weight: 700;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .primary-button {
-  background: var(--brand);
-  color: white;
+  background: var(--brand-strong);
+  color: var(--brand-on);
 }
 
 .secondary-button {
   background: var(--brand-soft);
-  color: var(--brand);
+  color: var(--brand-strong);
 }
 
 .ghost-button,
 .mini-button {
-  background: transparent;
+  background: color-mix(in srgb, var(--surface-strong) 70%, transparent);
   border: 1px solid var(--line-strong);
   color: var(--ink);
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.ghost-button:hover,
+.mini-button:hover {
+  transform: translateY(-1px);
 }
 
 .file-button {
@@ -437,7 +522,7 @@ th {
 }
 
 .candidate-card {
-  background: rgba(220, 232, 242, 0.35);
+  background: color-mix(in srgb, var(--brand-soft) 88%, var(--surface-strong));
 }
 
 .candidate-grid {
@@ -458,13 +543,14 @@ th {
   margin-top: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--surface-soft) 88%, transparent);
   padding: 12px 14px;
 }
 
 .details-box summary {
   cursor: pointer;
   font-weight: 700;
+  color: var(--ink);
 }
 
 .ocr-raw {
@@ -478,6 +564,7 @@ th {
   padding: 14px;
   margin-top: 12px;
   color: var(--muted);
+  background: color-mix(in srgb, var(--surface-soft) 92%, transparent);
 }
 
 .empty-state {
@@ -486,6 +573,7 @@ th {
   border: 1px dashed var(--line-strong);
   color: var(--muted);
   text-align: center;
+  background: color-mix(in srgb, var(--surface-soft) 68%, transparent);
 }
 
 @media (min-width: 760px) {

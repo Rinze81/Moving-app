@@ -148,6 +148,7 @@ const defaultData = {
   settings: {
     movingDate: "2026-03-28",
     targetStation: "新宿",
+    theme: "system",
     propertySort: "recommended",
     propertyFilters: {
       maxInitialCost: "",
@@ -307,6 +308,29 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getSystemTheme() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme() {
+  const theme = state.settings.theme === "system" ? getSystemTheme() : state.settings.theme;
+  document.documentElement.dataset.theme = theme;
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) {
+    themeColor.setAttribute("content", theme === "dark" ? "#1b2128" : "#f4efe7");
+  }
+  const button = document.getElementById("themeToggleButton");
+  if (!button) return;
+  const labels = {
+    system: "System",
+    dark: "Dark",
+    light: "Light"
+  };
+  button.textContent = labels[state.settings.theme] || "System";
+  button.setAttribute("aria-pressed", String(theme === "dark"));
+  button.setAttribute("aria-label", `テーマ: ${button.textContent}`);
 }
 
 function currency(value) {
@@ -564,6 +588,22 @@ function syncSettingsToForms() {
   document.getElementById("sortKey").value = state.settings.propertySort;
 }
 
+function highlightEditTarget(formId) {
+  const form = document.getElementById(formId);
+  const card = form?.closest(".card");
+  if (!card) return;
+  card.classList.remove("form-spotlight");
+  requestAnimationFrame(() => {
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    card.classList.add("form-spotlight");
+    window.setTimeout(() => card.classList.remove("form-spotlight"), 1800);
+  });
+}
+
+function focusForm(formId) {
+  highlightEditTarget(formId);
+}
+
 function renderQuickFilters() {
   const container = document.getElementById("quickFilterChips");
   container.innerHTML = "";
@@ -621,7 +661,7 @@ function renderSummary() {
 
   const movingPlanSummary = document.getElementById("movingPlanSummary");
   movingPlanSummary.textContent = state.settings.movingDate
-    ? `${dateLabel(state.settings.movingDate)} を基準に逆算タスクを作れます。比較駅は ${state.settings.targetStation || "未設定"} です。`
+    ? `${dateLabel(state.settings.movingDate)} を基準に逆算タスクを作れます。目的地は ${state.settings.targetStation || "未設定"} です。`
     : "引っ越し予定日を設定すると、期限候補を自動作成できます。";
 
   const bestPropertyCard = document.getElementById("bestPropertyCard");
@@ -642,12 +682,17 @@ function renderSummary() {
         <div class="tag">最寄り ${best.nearestStation || "未設定"}</div>
         <div class="tag">駅徒歩 ${best.walkMinutes || "-"}分</div>
       </div>
+      <div class="item-actions summary-actions">
+        <button class="mini-button" data-action="edit-property" data-id="${best.id}" type="button">編集</button>
+        <button class="mini-button" data-action="delete-property" data-id="${best.id}" type="button">削除</button>
+      </div>
       <p class="note">${best.memo || "メモなし"}</p>
     `;
   }
 
   renderPropertyTable(filteredProperties);
   renderUpcomingTasks();
+  renderPurchaseSummary();
 }
 
 function renderPropertyTable(properties) {
@@ -692,6 +737,24 @@ function renderPropertyTable(properties) {
       <tbody>${rows}</tbody>
     </table>
   `;
+  container.querySelectorAll("tbody tr").forEach((row, index) => {
+    const property = properties[index];
+    if (!property) return;
+    const actionCell = document.createElement("td");
+    actionCell.innerHTML = `
+      <div class="item-actions table-actions">
+        <button class="mini-button" data-action="edit-property" data-id="${property.id}" type="button">編集</button>
+        <button class="mini-button" data-action="delete-property" data-id="${property.id}" type="button">削除</button>
+      </div>
+    `;
+    row.appendChild(actionCell);
+  });
+  const headerRow = container.querySelector("thead tr");
+  if (headerRow) {
+    const actionHeader = document.createElement("th");
+    actionHeader.textContent = "操作";
+    headerRow.appendChild(actionHeader);
+  }
 }
 
 function renderProperties() {
@@ -771,10 +834,49 @@ function renderUpcomingTasks() {
             </div>
             <div class="${status.className}">${status.label}</div>
           </div>
+          <div class="item-actions summary-actions">
+            <button class="mini-button" data-action="edit-task" data-id="${task.id}" type="button">編集</button>
+            <button class="mini-button" data-action="delete-task" data-id="${task.id}" type="button">削除</button>
+          </div>
           <p class="note">${task.notes || "メモなし"}</p>
         </article>
       `;
     })
+    .join("");
+}
+
+
+function renderPurchaseSummary() {
+  const container = document.getElementById("purchaseSummaryList");
+  if (!container) return;
+
+  const items = [...state.purchases]
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+    .slice(0, 4);
+
+  if (!items.length) {
+    container.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+    return;
+  }
+
+  container.innerHTML = items
+    .map(
+      (purchase) => `
+        <article class="list-item compact-list-item">
+          <div class="purchase-header">
+            <div>
+              <div class="property-title">${purchase.name}</div>
+              <div class="muted">${purchase.category} ・ ${dateLabel(purchase.plannedDate)}</div>
+            </div>
+            <div class="property-title">${currency(purchase.amount)}</div>
+          </div>
+          <div class="item-actions summary-actions">
+            <button class="mini-button" data-action="edit-purchase" data-id="${purchase.id}" type="button">編集</button>
+            <button class="mini-button" data-action="delete-purchase" data-id="${purchase.id}" type="button">削除</button>
+          </div>
+        </article>
+      `
+    )
     .join("");
 }
 
@@ -1011,7 +1113,7 @@ function exportSummary() {
     ["追加購入費用合計", totalExtraPurchases()],
     ["想定総額", getGrandTotal()],
     ["最有力物件", best?.name ?? ""],
-    ["比較駅", state.settings.targetStation || ""]
+    ["目的地", state.settings.targetStation || ""]
   ];
   downloadTextFile("moving-summary.csv", "\uFEFF" + toCsv(rows), "text/csv;charset=utf-8;");
 }
@@ -1193,6 +1295,7 @@ function editEntity(collectionName, id, formId, fields) {
   if (formId === "taskForm") switchTab("tasks");
   if (formId === "propertyForm") switchTab("properties");
   if (formId === "purchaseForm") switchTab("purchases");
+  focusForm(formId);
 }
 
 function deleteEntity(collectionName, id) {
@@ -1370,6 +1473,13 @@ function handleListActions(event) {
 }
 
 function registerEvents() {
+  const media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  if (media) {
+    media.addEventListener("change", () => {
+      if (state.settings.theme === "system") applyTheme();
+    });
+  }
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.target));
   });
@@ -1403,14 +1513,24 @@ function registerEvents() {
   document.getElementById("generateSuggestedTasks").addEventListener("click", generateSuggestedTasks);
 
   document.getElementById("propertyList").addEventListener("click", handleListActions);
+  document.getElementById("bestPropertyCard").addEventListener("click", handleListActions);
+  document.getElementById("propertyTable").addEventListener("click", handleListActions);
+  document.getElementById("upcomingTasks").addEventListener("click", handleListActions);
   document.getElementById("taskGroups").addEventListener("click", handleListActions);
   document.getElementById("taskGroups").addEventListener("change", handleListActions);
   document.getElementById("purchaseList").addEventListener("click", handleListActions);
+  document.getElementById("purchaseSummaryList").addEventListener("click", handleListActions);
 
   document.getElementById("exportPropertyCsv").addEventListener("click", exportProperties);
   document.getElementById("exportTaskCsv").addEventListener("click", exportTasks);
   document.getElementById("exportPurchaseCsv").addEventListener("click", exportPurchases);
   document.getElementById("exportSummaryCsv").addEventListener("click", exportSummary);
+  document.getElementById("themeToggleButton").addEventListener("click", () => {
+    const nextTheme = state.settings.theme === "system" ? "dark" : state.settings.theme === "dark" ? "light" : "system";
+    state.settings.theme = nextTheme;
+    saveState();
+    applyTheme();
+  });
   document.getElementById("exportJsonButton").addEventListener("click", exportJson);
   document.getElementById("seedDataButton").addEventListener("click", resetSeedData);
   document.getElementById("importJsonInput").addEventListener("change", (event) => {
@@ -1430,5 +1550,6 @@ function registerPwa() {
 
 renderForms();
 registerEvents();
+applyTheme();
 renderAll();
 registerPwa();
