@@ -1,5 +1,6 @@
 const STORAGE_KEY = "moving-mate-v2";
 const SHARED_SPACE_KEY = "moving-mate-shared-space";
+const UI_PREFERENCES_KEY = "moving-mate-ui-preferences";
 const SHARED_SYNC_DELAY_MS = 800;
 
 const SORT_OPTIONS = [
@@ -25,24 +26,25 @@ const PROPERTY_FIELDS = [
   { name: "agency", label: "不動産会社名", type: "text", required: true },
   { name: "sourceUrl", label: "物件URL", type: "url", placeholder: "https://..." },
   { name: "nearestStation", label: "最寄り駅", type: "text", placeholder: "例: 新宿" },
-  { name: "walkMinutes", label: "駅徒歩(分)", type: "number" },
+  { name: "walkMinutes", label: "駅徒歩(分)", type: "text", inputmode: "decimal", placeholder: "例: 約10分" },
   { name: "rent", label: "家賃", type: "number" },
   { name: "maintenanceFee", label: "管理費", type: "number" },
   { name: "deposit", label: "敷金", type: "number" },
   { name: "keyMoney", label: "礼金", type: "number" },
-  { name: "brokerFee", label: "仲介手数料", type: "number" },
-  { name: "guaranteeFee", label: "保証料", type: "number" },
-  { name: "fireInsurance", label: "火災保険", type: "number" },
-  { name: "keyExchange", label: "鍵交換", type: "number" },
+  { name: "brokerFee", label: "仲介手数料", type: "text", inputmode: "decimal", placeholder: "例: 1.1ヶ月 / 72600円" },
+  { name: "guaranteeFee", label: "保証料", type: "text", inputmode: "decimal", placeholder: "例: 月額賃料等の50%" },
+  { name: "fireInsurance", label: "火災保険", type: "text", inputmode: "decimal", placeholder: "例: 18000円" },
+  { name: "keyExchange", label: "鍵交換", type: "text", inputmode: "decimal", placeholder: "例: 22000円" },
   { name: "support24", label: "24時間サポート", type: "number" },
   { name: "disinfection", label: "消毒費用", type: "number" },
   { name: "cleaningFee", label: "クリーニング費用", type: "number" },
-  { name: "otherFees", label: "その他費用", type: "number" },
-  { name: "freeRentMonths", label: "フリーレント(月)", type: "number", step: "0.5" },
+  { name: "otherFees", label: "その他費用", type: "text", inputmode: "decimal", placeholder: "例: 退去時清掃費 38500円" },
+  { name: "freeRentMonths", label: "フリーレント(月)", type: "text", inputmode: "decimal", placeholder: "例: 1ヶ月 / 相談" },
   { name: "area", label: "広さ(m2)", type: "number", step: "0.1" },
   { name: "buildingAge", label: "築年数", type: "number" },
   { name: "floor", label: "階数", type: "number" },
-  { name: "commuteMinutes", label: "通勤時間(分)", type: "number" },
+  { name: "commuteMinutes", label: "通勤時間(分)", type: "text", inputmode: "decimal", placeholder: "例: 約35分" },
+  { name: "destinationDistance", label: "目的地までの距離", type: "text", inputmode: "decimal", placeholder: "例: 12km / 4.2km" },
   { name: "estimateDate", label: "見積日", type: "date" },
   { name: "visitDate", label: "内見日", type: "date" },
   {
@@ -160,22 +162,8 @@ const ASSIST_FIELD_MAP = {
   memo: "メモ"
 };
 
-const SUGGESTED_TASKS = [
-  { title: "物件契約の最終確認", category: "契約", offsetDays: 21, notes: "特約、初期費用、入居日を確認" },
-  { title: "引っ越し業者の手配", category: "荷造り", offsetDays: 21, notes: "見積もり比較と予約" },
-  { title: "インターネット契約の確認", category: "ライフライン", offsetDays: 18, notes: "開通日と工事有無を確認" },
-  { title: "不用品整理を始める", category: "荷造り", offsetDays: 16, notes: "粗大ごみ予約も確認" },
-  { title: "家具家電の購入計画を確定", category: "買い物", offsetDays: 14, notes: "搬入日とサイズを確認" },
-  { title: "梱包を開始する", category: "荷造り", offsetDays: 10, notes: "使わない物から箱詰め" },
-  { title: "電気・ガス・水道の開始手続き", category: "ライフライン", offsetDays: 7, notes: "停止手続きも忘れずに" },
-  { title: "転出届の準備", category: "役所手続き", offsetDays: 7, notes: "マイナンバーカード利用可否も確認" },
-  { title: "住所変更の洗い出し", category: "住所変更", offsetDays: 5, notes: "銀行、保険、ECサイト、免許証など" },
-  { title: "転入届・各種住所変更の確認", category: "役所手続き", offsetDays: -3, notes: "転入後に必要な手続きをまとめる" }
-];
-
 const defaultData = {
   settings: {
-    movingDate: "2026-03-28",
     targetStation: "新宿",
     theme: "system",
     propertySort: "recommended",
@@ -410,6 +398,34 @@ function saveSharedSpaceMeta() {
   );
 }
 
+function loadUiPreferences() {
+  try {
+    return JSON.parse(localStorage.getItem(UI_PREFERENCES_KEY) || "{}");
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function saveUiPreferences(preferences) {
+  localStorage.setItem(UI_PREFERENCES_KEY, JSON.stringify(preferences));
+}
+
+function initializeCollapsiblePanels() {
+  const preferences = loadUiPreferences();
+  document.querySelectorAll("details[data-persist-key]").forEach((panel) => {
+    const key = panel.dataset.persistKey;
+    if (Object.prototype.hasOwnProperty.call(preferences, key)) {
+      panel.open = Boolean(preferences[key]);
+    }
+    panel.addEventListener("toggle", () => {
+      const nextPreferences = loadUiPreferences();
+      nextPreferences[key] = panel.open;
+      saveUiPreferences(nextPreferences);
+    });
+  });
+}
+
 function getSupabaseConfig() {
   const config = window.MOVING_MATE_CONFIG || {};
   return {
@@ -524,25 +540,140 @@ function daysUntil(dateString) {
   return Math.round((target - today) / DATE_MS);
 }
 
-function totalInitialCost(property) {
-  const monthly = totalMonthlyCost(property);
+function normalizeWideDigits(value) {
+  return String(value ?? "")
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 65248))
+    .replace(/[．。]/g, ".")
+    .replace(/[，]/g, ",")
+    .replace(/[％]/g, "%")
+    .replace(/[ー−－]/g, "-")
+    .replace(/[／]/g, "/")
+    .replace(/[　]/g, " ")
+    .trim();
+}
+
+function normalizeObjectTextValues(record) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [key, typeof value === "string" ? normalizeWideDigits(value) : value])
+  );
+}
+
+function extractFirstNumber(value) {
+  const normalized = normalizeWideDigits(value).replaceAll(",", "");
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function extractAllNumbers(value) {
+  const normalized = normalizeWideDigits(value).replaceAll(",", "");
+  return [...normalized.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0])).filter(Number.isFinite);
+}
+
+function extractMonthValue(value) {
+  const normalized = normalizeWideDigits(value);
+  const match = normalized.match(/(-?\d+(?:\.\d+)?)\s*(?:ヶ月|か月|ヵ月|カ月|月)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function extractPercentValue(value) {
+  const normalized = normalizeWideDigits(value);
+  const match = normalized.match(/(-?\d+(?:\.\d+)?)\s*%/);
+  return match ? Number(match[1]) : null;
+}
+
+function sumKnownAmounts(values) {
+  const known = values.filter((value) => Number.isFinite(value));
+  return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
+}
+
+function getRentBaseAmount(property) {
+  return extractFirstNumber(property.rent);
+}
+
+function getMonthlyBaseAmount(property) {
+  return sumKnownAmounts([extractFirstNumber(property.rent), extractFirstNumber(property.maintenanceFee)]) ?? 0;
+}
+
+function extractFlexibleMoney(value, { rentBase = 0, monthlyBase = 0 } = {}) {
+  const normalized = normalizeWideDigits(value);
+  if (!normalized) return null;
+
+  const percent = extractPercentValue(normalized);
+  if (percent !== null && monthlyBase > 0) return Math.round((monthlyBase * percent) / 100);
+
+  const monthValue = extractMonthValue(normalized);
+  if (monthValue !== null && rentBase > 0) return Math.round(rentBase * monthValue);
+
+  const numericParts = extractAllNumbers(normalized);
+  if (numericParts.length > 1) return numericParts.reduce((sum, amount) => sum + amount, 0);
+  return numericParts[0] ?? null;
+}
+
+function getPropertyNumericValue(property, fieldName) {
+  const rentBase = getRentBaseAmount(property);
+  const monthlyBase = getMonthlyBaseAmount(property);
+
+  if (["deposit", "keyMoney", "brokerFee"].includes(fieldName)) {
+    return extractFlexibleMoney(property[fieldName], { rentBase, monthlyBase });
+  }
+
+  if (fieldName === "guaranteeFee") {
+    return extractFlexibleMoney(property[fieldName], { rentBase, monthlyBase });
+  }
+
+  if (["fireInsurance", "keyExchange", "support24", "disinfection", "cleaningFee", "otherFees"].includes(fieldName)) {
+    return extractFlexibleMoney(property[fieldName], { rentBase, monthlyBase });
+  }
+
+  if (fieldName === "freeRentMonths") return extractMonthValue(property[fieldName]) ?? extractFirstNumber(property[fieldName]);
+  if (["walkMinutes", "commuteMinutes", "destinationDistance", "area", "buildingAge", "floor", "rent", "maintenanceFee"].includes(fieldName)) {
+    return extractFirstNumber(property[fieldName]);
+  }
+
+  return extractFirstNumber(property[fieldName]);
+}
+
+function getInitialCostItems(property) {
   return [
-    property.deposit,
-    property.keyMoney,
-    property.brokerFee,
-    property.guaranteeFee,
-    property.fireInsurance,
-    property.keyExchange,
-    property.support24,
-    property.disinfection,
-    property.cleaningFee,
-    property.otherFees,
-    monthly * Math.max(1 - Number(property.freeRentMonths || 0), 0)
-  ].reduce((sum, item) => sum + Number(item || 0), 0);
+    { label: "敷金", amount: getPropertyNumericValue(property, "deposit") },
+    { label: "礼金", amount: getPropertyNumericValue(property, "keyMoney") },
+    { label: "仲介手数料", amount: getPropertyNumericValue(property, "brokerFee") },
+    { label: "保証料", amount: getPropertyNumericValue(property, "guaranteeFee") },
+    { label: "火災保険", amount: getPropertyNumericValue(property, "fireInsurance") },
+    { label: "鍵交換", amount: getPropertyNumericValue(property, "keyExchange") },
+    { label: "24時間サポート", amount: getPropertyNumericValue(property, "support24") },
+    { label: "消毒費用", amount: getPropertyNumericValue(property, "disinfection") },
+    { label: "クリーニング費用", amount: getPropertyNumericValue(property, "cleaningFee") },
+    { label: "その他費用", amount: getPropertyNumericValue(property, "otherFees") }
+  ].filter((item) => Number.isFinite(item.amount));
+}
+
+function totalInitialCost(property) {
+  const items = getInitialCostItems(property);
+  if (!items.length) return null;
+  return items.reduce((sum, item) => sum + item.amount, 0);
 }
 
 function totalMonthlyCost(property) {
-  return Number(property.rent || 0) + Number(property.maintenanceFee || 0);
+  return sumKnownAmounts([getPropertyNumericValue(property, "rent"), getPropertyNumericValue(property, "maintenanceFee")]);
+}
+
+function formatCurrencyAmount(value, emptyLabel = "算出待ち") {
+  return Number.isFinite(value) ? currency(value) : emptyLabel;
+}
+
+function formatMaybeNumber(value, suffix = "") {
+  if (value === null || value === undefined || value === "") return "-";
+  const text = String(value).trim();
+  if (!text) return "-";
+  return suffix && !text.includes(suffix) ? `${text}${suffix}` : text;
+}
+
+function getGrandTotal() {
+  const best = getBestProperty();
+  const initialCost = best ? totalInitialCost(best) : null;
+  if (!best || !Number.isFinite(initialCost)) return null;
+  return initialCost + totalExtraPurchases();
 }
 
 function totalExtraPurchases() {
@@ -557,15 +688,15 @@ function stationMatches(property, station) {
 function propertyScore(property) {
   const monthly = totalMonthlyCost(property);
   const initial = totalInitialCost(property);
-  const commute = Number(property.commuteMinutes || 90);
-  const walk = Number(property.walkMinutes || 30);
-  const area = Number(property.area || 0);
-  const age = Number(property.buildingAge || 99);
-  const floorBonus = Number(property.floor || 0) >= 2 ? 12 : 0;
+  const commute = getPropertyNumericValue(property, "commuteMinutes") ?? 90;
+  const walk = getPropertyNumericValue(property, "walkMinutes") ?? 30;
+  const area = getPropertyNumericValue(property, "area") ?? 0;
+  const age = getPropertyNumericValue(property, "buildingAge") ?? 99;
+  const floorBonus = (getPropertyNumericValue(property, "floor") ?? 0) >= 2 ? 12 : 0;
   const bathBonus = property.bathToiletSeparate === "yes" ? 15 : 0;
   const stationBonus = stationMatches(property, state.settings.targetStation) ? 18 : 0;
-  const freeRentBonus = Number(property.freeRentMonths || 0) * 10;
-  return area * 7 - monthly / 4200 - initial / 32000 - commute / 3 - walk / 2 - age + floorBonus + bathBonus + stationBonus + freeRentBonus;
+  const freeRentBonus = (getPropertyNumericValue(property, "freeRentMonths") ?? 0) * 10;
+  return area * 7 - (monthly ?? 0) / 4200 - (initial ?? 0) / 32000 - commute / 3 - walk / 2 - age + floorBonus + bathBonus + stationBonus + freeRentBonus;
 }
 
 function getFilteredSortedProperties() {
@@ -573,32 +704,41 @@ function getFilteredSortedProperties() {
   const targetStation = state.settings.targetStation;
 
   let list = [...state.properties].filter((property) => {
-    if (filters.maxInitialCost && totalInitialCost(property) > Number(filters.maxInitialCost)) return false;
-    if (filters.maxMonthlyCost && totalMonthlyCost(property) > Number(filters.maxMonthlyCost)) return false;
-    if (filters.minArea && Number(property.area || 0) < Number(filters.minArea)) return false;
-    if (filters.maxWalkMinutes && Number(property.walkMinutes || 999) > Number(filters.maxWalkMinutes)) return false;
-    if (filters.maxBuildingAge && Number(property.buildingAge || 999) > Number(filters.maxBuildingAge)) return false;
-    if (filters.maxCommuteMinutes && Number(property.commuteMinutes || 999) > Number(filters.maxCommuteMinutes)) return false;
+    const initialCost = totalInitialCost(property);
+    const monthlyCost = totalMonthlyCost(property);
+    const areaValue = getPropertyNumericValue(property, "area");
+    const walkValue = getPropertyNumericValue(property, "walkMinutes");
+    const buildingAge = getPropertyNumericValue(property, "buildingAge");
+    const commuteValue = getPropertyNumericValue(property, "commuteMinutes");
+    const floorValue = getPropertyNumericValue(property, "floor");
+    const freeRentValue = getPropertyNumericValue(property, "freeRentMonths");
+
+    if (filters.maxInitialCost && (!Number.isFinite(initialCost) || initialCost > Number(filters.maxInitialCost))) return false;
+    if (filters.maxMonthlyCost && (!Number.isFinite(monthlyCost) || monthlyCost > Number(filters.maxMonthlyCost))) return false;
+    if (filters.minArea && (areaValue ?? 0) < Number(filters.minArea)) return false;
+    if (filters.maxWalkMinutes && (walkValue ?? 999) > Number(filters.maxWalkMinutes)) return false;
+    if (filters.maxBuildingAge && (buildingAge ?? 999) > Number(filters.maxBuildingAge)) return false;
+    if (filters.maxCommuteMinutes && (commuteValue ?? 999) > Number(filters.maxCommuteMinutes)) return false;
     if (filters.stationKeyword && !stationMatches(property, filters.stationKeyword)) return false;
-    if (filters.floor2Plus && Number(property.floor || 0) < 2) return false;
+    if (filters.floor2Plus && (floorValue ?? 0) < 2) return false;
     if (filters.bathToiletSeparateOnly && property.bathToiletSeparate !== "yes") return false;
     if (filters.nearTargetStationOnly && !stationMatches(property, targetStation)) return false;
-    if (filters.freeRentOnly && Number(property.freeRentMonths || 0) <= 0) return false;
+    if (filters.freeRentOnly && (freeRentValue ?? 0) <= 0) return false;
     return true;
   });
 
   const sortKey = state.settings.propertySort;
   list.sort((a, b) => {
-    if (sortKey === "initialAsc") return totalInitialCost(a) - totalInitialCost(b);
-    if (sortKey === "monthlyAsc") return totalMonthlyCost(a) - totalMonthlyCost(b);
-    if (sortKey === "areaDesc") return Number(b.area || 0) - Number(a.area || 0);
-    if (sortKey === "ageAsc") return Number(a.buildingAge || 999) - Number(b.buildingAge || 999);
-    if (sortKey === "walkAsc") return Number(a.walkMinutes || 999) - Number(b.walkMinutes || 999);
+    if (sortKey === "initialAsc") return (totalInitialCost(a) ?? Number.POSITIVE_INFINITY) - (totalInitialCost(b) ?? Number.POSITIVE_INFINITY);
+    if (sortKey === "monthlyAsc") return (totalMonthlyCost(a) ?? Number.POSITIVE_INFINITY) - (totalMonthlyCost(b) ?? Number.POSITIVE_INFINITY);
+    if (sortKey === "areaDesc") return (getPropertyNumericValue(b, "area") ?? 0) - (getPropertyNumericValue(a, "area") ?? 0);
+    if (sortKey === "ageAsc") return (getPropertyNumericValue(a, "buildingAge") ?? 999) - (getPropertyNumericValue(b, "buildingAge") ?? 999);
+    if (sortKey === "walkAsc") return (getPropertyNumericValue(a, "walkMinutes") ?? 999) - (getPropertyNumericValue(b, "walkMinutes") ?? 999);
     if (sortKey === "stationMatch") {
       const aMatch = stationMatches(a, targetStation) ? 1 : 0;
       const bMatch = stationMatches(b, targetStation) ? 1 : 0;
       if (aMatch !== bMatch) return bMatch - aMatch;
-      return Number(a.walkMinutes || 999) - Number(b.walkMinutes || 999);
+      return (getPropertyNumericValue(a, "walkMinutes") ?? 999) - (getPropertyNumericValue(b, "walkMinutes") ?? 999);
     }
     return propertyScore(b) - propertyScore(a);
   });
@@ -607,11 +747,6 @@ function getFilteredSortedProperties() {
 
 function getBestProperty() {
   return getFilteredSortedProperties()[0] || null;
-}
-
-function getGrandTotal() {
-  const best = getBestProperty();
-  return (best ? totalInitialCost(best) : 0) + totalExtraPurchases();
 }
 
 function getTaskStatus(task) {
@@ -676,6 +811,7 @@ function createField(field) {
   if (field.required) input.required = true;
   if (field.placeholder) input.placeholder = field.placeholder;
   if (field.step) input.step = field.step;
+  if (field.inputmode) input.inputMode = field.inputmode;
   if (field.type === "file") {
     input.accept = "image/*";
     input.multiple = true;
@@ -753,7 +889,7 @@ function resetForm(formId) {
 }
 
 function syncSettingsToForms() {
-  fillForm("settingsForm", state.settings, [{ name: "movingDate" }, { name: "targetStation" }]);
+  fillForm("settingsForm", state.settings, [{ name: "targetStation" }]);
   fillForm("propertyFilterForm", state.settings.propertyFilters, FILTER_FIELDS);
   document.getElementById("sortKey").value = state.settings.propertySort;
 }
@@ -830,9 +966,9 @@ function renderSummary() {
     .join("");
 
   const movingPlanSummary = document.getElementById("movingPlanSummary");
-  movingPlanSummary.textContent = state.settings.movingDate
-    ? `${dateLabel(state.settings.movingDate)} を基準に逆算タスクを作れます。目的地は ${state.settings.targetStation || "未設定"} です。`
-    : "引っ越し予定日を設定すると、期限候補を自動作成できます。";
+  movingPlanSummary.textContent = state.settings.targetStation
+    ? `目的地は ${state.settings.targetStation} です。物件比較のおすすめ順や絞り込みに使われます。`
+    : "目的地を入れると、物件比較のおすすめ順や絞り込みに反映されます。";
 
   const bestPropertyCard = document.getElementById("bestPropertyCard");
   if (!best) {
@@ -970,6 +1106,213 @@ function renderProperties() {
             <div class="tag">築 ${property.buildingAge || "-"}年</div>
             <div class="tag">${Number(property.floor || 0) >= 2 ? "2階以上" : "1階"}</div>
             <div class="tag">${property.bathToiletSeparate === "yes" ? "バストイレ別" : "同室"}</div>
+          </div>
+          <div class="item-actions" style="margin-top: 10px">${sourceLink}</div>
+          <p class="note">${property.memo || "メモなし"}</p>
+          ${imageHtml}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderSummary() {
+  const summaryCards = document.getElementById("summaryCards");
+  const filteredProperties = getFilteredSortedProperties();
+  const best = getBestProperty();
+  const openTasks = state.tasks.filter((task) => !task.completed);
+  const warningTasks = openTasks.filter((task) => getTaskStatus(task).className.includes("overdue"));
+  const bestInitialCost = best ? totalInitialCost(best) : null;
+  const grandTotal = getGrandTotal();
+
+  const cards = [
+    {
+      label: "比較中の物件",
+      value: filteredProperties.length,
+      sub: best ? `最有力: ${best.name}` : "比較に使う物件なし"
+    },
+    {
+      label: "未完了タスク",
+      value: openTasks.length,
+      sub: warningTasks.length ? `${warningTasks.length}件が要注意` : "締切が近い順で確認できます"
+    },
+    {
+      label: "追加購入費用",
+      value: currency(totalExtraPurchases()),
+      sub: `${state.purchases.length}件を登録`
+    },
+    {
+      label: "想定総額",
+      value: formatCurrencyAmount(grandTotal),
+      sub: best
+        ? Number.isFinite(bestInitialCost)
+          ? `${best.name} の初期費用 + 購入費用`
+          : `${best.name} の初期費用を入れると計算`
+        : "最有力物件を選ぶと計算"
+    }
+  ];
+
+  summaryCards.innerHTML = cards
+    .map(
+      (card) => `
+        <article class="summary-card">
+          <div class="summary-label">${card.label}</div>
+          <div class="summary-value">${card.value}</div>
+          <div class="summary-sub">${card.sub}</div>
+        </article>
+      `
+    )
+    .join("");
+
+  const movingPlanSummary = document.getElementById("movingPlanSummary");
+  movingPlanSummary.textContent = state.settings.targetStation
+    ? `目的地は ${state.settings.targetStation} です。物件比較のおすすめ順や絞り込みに使われます。`
+    : "目的地を入れると、物件比較のおすすめ順や絞り込みに反映されます。";
+
+  const bestPropertyCard = document.getElementById("bestPropertyCard");
+  if (!best) {
+    bestPropertyCard.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+  } else {
+    const initialItems = getInitialCostItems(best);
+    const initialSummary = initialItems.length
+      ? initialItems.slice(0, 3).map((item) => item.label).join(" / ")
+      : "初期費用の内訳は未入力";
+    bestPropertyCard.innerHTML = `
+      <div class="property-header">
+        <div>
+          <div class="property-title">${best.name}</div>
+          <div class="muted">${best.agency}</div>
+        </div>
+        <div class="status-tag">最有力候補</div>
+      </div>
+      <div class="meta-row">
+        <div class="tag">初期費用 ${formatCurrencyAmount(bestInitialCost)}</div>
+        <div class="tag">月額 ${formatCurrencyAmount(totalMonthlyCost(best))}</div>
+        <div class="tag">最寄り ${best.nearestStation || "未設定"}</div>
+        <div class="tag">駅徒歩 ${formatMaybeNumber(best.walkMinutes, "分")}</div>
+      </div>
+      <div class="muted" style="margin-top: 10px">${initialSummary}</div>
+      <div class="item-actions summary-actions">
+        <button class="mini-button" data-action="edit-property" data-id="${best.id}" type="button">編集</button>
+        <button class="mini-button" data-action="delete-property" data-id="${best.id}" type="button">削除</button>
+      </div>
+      <p class="note">${best.memo || "メモなし"}</p>
+    `;
+  }
+
+  renderPropertyTable(filteredProperties);
+  renderUpcomingTasks();
+  renderPurchaseSummary();
+}
+
+function renderPropertyTable(properties) {
+  const container = document.getElementById("propertyTable");
+  if (!properties.length) {
+    container.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+    return;
+  }
+
+  const rows = properties
+    .slice(0, 6)
+    .map(
+      (property) => `
+        <tr>
+          <td>${property.name}</td>
+          <td>${property.agency}</td>
+          <td>${formatCurrencyAmount(totalInitialCost(property), "-")}</td>
+          <td>${formatCurrencyAmount(totalMonthlyCost(property), "-")}</td>
+          <td>${property.nearestStation || "-"}</td>
+          <td>${formatMaybeNumber(property.walkMinutes, "分")}</td>
+          <td>${formatMaybeNumber(property.area, "m2")}</td>
+          <td>${formatMaybeNumber(property.buildingAge, "年")}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>物件</th>
+          <th>会社</th>
+          <th>初期費用</th>
+          <th>月額</th>
+          <th>駅</th>
+          <th>徒歩</th>
+          <th>広さ</th>
+          <th>築年</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  container.querySelectorAll("tbody tr").forEach((row, index) => {
+    const property = properties[index];
+    if (!property) return;
+    const actionCell = document.createElement("td");
+    actionCell.innerHTML = `
+      <div class="item-actions table-actions">
+        <button class="mini-button" data-action="edit-property" data-id="${property.id}" type="button">編集</button>
+        <button class="mini-button" data-action="delete-property" data-id="${property.id}" type="button">削除</button>
+      </div>
+    `;
+    row.appendChild(actionCell);
+  });
+
+  const headerRow = container.querySelector("thead tr");
+  if (headerRow) {
+    const actionHeader = document.createElement("th");
+    actionHeader.textContent = "操作";
+    headerRow.appendChild(actionHeader);
+  }
+}
+
+function renderProperties() {
+  const list = document.getElementById("propertyList");
+  const properties = getFilteredSortedProperties();
+  if (!properties.length) {
+    list.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+    return;
+  }
+
+  list.innerHTML = properties
+    .map((property) => {
+      const imageHtml = (property.images || []).length
+        ? `<div class="gallery">${property.images
+            .map((image) => `<img src="${image.dataUrl}" alt="${property.name}" loading="lazy" />`)
+            .join("")}</div>`
+        : "";
+
+      const sourceLink = property.sourceUrl
+        ? `
+          <a class="mini-button" href="${property.sourceUrl}" target="_blank" rel="noreferrer">リンクを開く</a>
+          <span class="tag">${property.sourceUrl}</span>
+        `
+        : "";
+
+      return `
+        <article class="list-item">
+          <div class="property-header">
+            <div>
+              <div class="property-title">${property.name}</div>
+              <div class="muted">${property.agency}</div>
+            </div>
+            <div class="item-actions">
+              <button class="mini-button" data-action="edit-property" data-id="${property.id}" type="button">編集</button>
+              <button class="mini-button" data-action="delete-property" data-id="${property.id}" type="button">削除</button>
+            </div>
+          </div>
+          <div class="meta-row">
+            <div class="tag">初期費用 ${formatCurrencyAmount(totalInitialCost(property))}</div>
+            <div class="tag">月額 ${formatCurrencyAmount(totalMonthlyCost(property))}</div>
+            <div class="tag">${property.nearestStation || "駅未設定"} / 徒歩 ${formatMaybeNumber(property.walkMinutes, "分")}</div>
+            <div class="tag">広さ ${formatMaybeNumber(property.area, "m2")}</div>
+            <div class="tag">築 ${formatMaybeNumber(property.buildingAge, "年")}</div>
+            <div class="tag">${(getPropertyNumericValue(property, "floor") ?? 0) >= 2 ? "2階以上" : "1階"}</div>
+            <div class="tag">${property.bathToiletSeparate === "yes" ? "バストイレ別" : "混在"}</div>
+            <div class="tag">目的地 ${formatMaybeNumber(property.commuteMinutes, "分")}</div>
           </div>
           <div class="item-actions" style="margin-top: 10px">${sourceLink}</div>
           <p class="note">${property.memo || "メモなし"}</p>
@@ -1397,12 +1740,12 @@ function mapPropertyToRemote(property, sharedSpaceId) {
     area_value: numberOrNull(property.area),
     nearest_station: property.nearestStation || "",
     station_walk_text: property.walkMinutes === undefined ? "" : String(property.walkMinutes ?? ""),
-    station_walk_value: numberOrNull(property.walkMinutes),
+    station_walk_value: getPropertyNumericValue(property, "walkMinutes"),
     destination_name: state.settings.targetStation || "",
     destination_duration_text: property.commuteMinutes === undefined ? "" : String(property.commuteMinutes ?? ""),
-    destination_duration_value: numberOrNull(property.commuteMinutes),
-    destination_distance_text: "",
-    destination_distance_value: null,
+    destination_duration_value: getPropertyNumericValue(property, "commuteMinutes"),
+    destination_distance_text: property.destinationDistance === undefined ? "" : String(property.destinationDistance ?? ""),
+    destination_distance_value: getPropertyNumericValue(property, "destinationDistance"),
     destination_transport_memo: "",
     age_text: property.buildingAge === undefined ? "" : String(property.buildingAge ?? ""),
     age_value: numberOrNull(property.buildingAge),
@@ -1433,7 +1776,7 @@ function mapRemoteToProperty(row) {
     agency: row.real_estate_company || "",
     sourceUrl: row.property_url || "",
     nearestStation: row.nearest_station || "",
-    walkMinutes: row.station_walk_value ?? row.station_walk_text ?? "",
+    walkMinutes: row.station_walk_text || row.station_walk_value || "",
     rent: row.monthly_rent_value ?? row.monthly_rent_text ?? "",
     maintenanceFee: row.management_fee_value ?? row.management_fee_text ?? "",
     deposit: row.deposit_text || "",
@@ -1450,7 +1793,8 @@ function mapRemoteToProperty(row) {
     area: row.area_value ?? row.area_text ?? "",
     buildingAge: row.age_value ?? row.age_text ?? "",
     floor: row.floor_text || "",
-    commuteMinutes: row.destination_duration_value ?? row.destination_duration_text ?? "",
+    commuteMinutes: row.destination_duration_text || row.destination_duration_value || "",
+    destinationDistance: row.destination_distance_text || row.destination_distance_value || "",
     estimateDate: extras.estimateDate || "",
     visitDate: extras.visitDate || "",
     bathToiletSeparate: row.bath_toilet_separate ? "yes" : "no",
@@ -1813,7 +2157,7 @@ async function initializeSharedSpace() {
 async function onPropertySubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
-  const values = formDataToObject(form);
+  const values = normalizeObjectTextValues(formDataToObject(form));
   const existing = state.properties.find((property) => property.id === values.id);
   const newImages = await filesToDataUrls(form.querySelector('[name="images"]').files);
 
@@ -1902,7 +2246,6 @@ function onNoteSubmit(event) {
 function onSettingsSubmit(event) {
   event.preventDefault();
   const values = formDataToObject(event.currentTarget);
-  state.settings.movingDate = values.movingDate;
   state.settings.targetStation = values.targetStation;
   saveState({ syncRemote: false });
   renderAll();
@@ -1924,36 +2267,6 @@ function onFilterSubmit(event) {
 function resetSeedData() {
   state = structuredClone(defaultData);
   currentAssist = { rawText: "", candidates: {}, sourceUrl: "", sourceLabel: "" };
-  saveState({ syncRemote: true });
-  renderAll();
-}
-
-function generateSuggestedTasks() {
-  if (!state.settings.movingDate) {
-    alert("先に引っ越し予定日を設定してください。");
-    return;
-  }
-
-  const movingDate = new Date(state.settings.movingDate);
-  const retained = state.tasks.filter((task) => !task.autoGenerated);
-  const generated = SUGGESTED_TASKS.map((template) => {
-    const dueDate = new Date(movingDate);
-    dueDate.setDate(movingDate.getDate() - template.offsetDays);
-    return {
-      id: crypto.randomUUID(),
-      title: template.title,
-      category: template.category,
-      dueDate: dueDate.toISOString().slice(0, 10),
-      alertStartDays: 7,
-      warningDays: 3,
-      notes: template.notes,
-      completed: false,
-      autoGenerated: true,
-      createdAt: Date.now()
-    };
-  });
-
-  state.tasks = [...generated, ...retained];
   saveState({ syncRemote: true });
   renderAll();
 }
@@ -2215,7 +2528,6 @@ function registerEvents() {
   document.getElementById("candidatePanel").addEventListener("click", (event) => {
     if (event.target.id === "applyAssistCandidates") applyAssistCandidates();
   });
-  document.getElementById("generateSuggestedTasks").addEventListener("click", generateSuggestedTasks);
   document.getElementById("createSharedSpaceButton").addEventListener("click", async () => {
     try {
       await createSharedSpace();
@@ -2285,6 +2597,7 @@ function registerPwa() {
 
 renderForms();
 registerEvents();
+initializeCollapsiblePanels();
 applyTheme();
 renderAll();
 void initializeSharedSpace();

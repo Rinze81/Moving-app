@@ -664,6 +664,65 @@ th {
   color: var(--ink);
 }
 
+.collapsible-card {
+  padding: 0;
+  overflow: clip;
+}
+
+.collapsible-summary {
+  display: block;
+  list-style: none;
+  cursor: pointer;
+  padding: 18px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-summary .section-heading {
+  margin-bottom: 0;
+  padding-right: 44px;
+  position: relative;
+}
+
+.collapsible-summary .section-heading::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-soft) 36%, var(--surface-strong));
+  color: var(--brand-strong);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.collapsible-card[open] .collapsible-summary {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--brand-soft) 24%, var(--surface-strong));
+}
+
+.collapsible-card[open] .collapsible-summary .section-heading::after {
+  content: "-";
+}
+
+.collapsible-content {
+  padding: 18px;
+}
+
+.collapsible-content > :first-child {
+  margin-top: 0;
+}
+
 .ocr-raw {
   margin: 12px 0 0;
   white-space: pre-wrap;
@@ -722,6 +781,14 @@ th {
 
   .section-heading {
     margin-bottom: 12px;
+  }
+
+  .collapsible-summary {
+    padding: 16px;
+  }
+
+  .collapsible-content {
+    padding: 16px;
   }
 
   .comparison-table {

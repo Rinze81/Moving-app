@@ -75,7 +75,7 @@ Free プランでも、今回の用途ならまず十分に試せる構成です
 ## 今回の実装での割り切り
 
 - 共有対象は `properties / tasks / purchases / notes`
-- 画面設定 (`movingDate`, `targetStation`, テーマ, フィルター状態) はローカル保存
+- 画面設定 (`targetStation`, テーマ, フィルター状態) はローカル保存
 - 画像は Supabase Storage にはまだ移していないため、この段階では共有対象外
 - オフライン時はローカルに保存し、オンライン復帰後に再同期
 
