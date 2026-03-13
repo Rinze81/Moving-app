@@ -1,0 +1,4 @@
+window.MOVING_MATE_CONFIG = {
+  SUPABASE_URL: "https://kdeankxmeglrufzjqilh.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkZWFua3htZWdscnVmempxaWxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNzA3NDQsImV4cCI6MjA4ODk0Njc0NH0.ALN8qmixOq8fgzyVdAjcl8hSork0oe2u09I4QwvmrT0"
+};
