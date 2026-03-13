@@ -2490,6 +2490,155 @@ function handleListActions(event) {
   }
 }
 
+function renderSummary() {
+  const summaryCards = document.getElementById("summaryCards");
+  const filteredProperties = getFilteredSortedProperties();
+  const best = getBestProperty();
+  const openTasks = state.tasks.filter((task) => !task.completed);
+  const warningTasks = openTasks.filter((task) => getTaskStatus(task).className.includes("overdue"));
+  const bestInitialCost = best ? totalInitialCost(best) : null;
+  const grandTotal = getGrandTotal();
+
+  const cards = [
+    {
+      label: "比較中の物件",
+      value: filteredProperties.length,
+      sub: best ? `最有力: ${best.name}` : "比較中の物件はまだありません"
+    },
+    {
+      label: "未完了タスク",
+      value: openTasks.length,
+      sub: warningTasks.length ? `${warningTasks.length}件は期限超過です` : "締切が近い順で確認できます"
+    },
+    {
+      label: "購入費用合計",
+      value: currency(totalExtraPurchases()),
+      sub: `${state.purchases.length}件を集計`
+    },
+    {
+      label: "想定総額",
+      value: formatCurrencyAmount(grandTotal),
+      sub: best
+        ? Number.isFinite(bestInitialCost)
+          ? `${best.name} の初期費用 + 購入費用`
+          : `${best.name} の初期費用は算出待ち`
+        : "最有力物件を選ぶと算出します"
+    }
+  ];
+
+  summaryCards.innerHTML = cards
+    .map(
+      (card) => `
+        <article class="summary-card">
+          <div class="summary-label">${card.label}</div>
+          <div class="summary-value">${card.value}</div>
+          <div class="summary-sub">${card.sub}</div>
+        </article>
+      `
+    )
+    .join("");
+
+  const movingPlanSummary = document.getElementById("movingPlanSummary");
+  movingPlanSummary.textContent = state.settings.targetStation
+    ? `目的地は ${state.settings.targetStation} です。物件比較のおすすめ順や絞り込みに使われます。`
+    : "目的地を入れると、物件比較のおすすめ順や絞り込みに反映されます。";
+
+  const bestPropertyCard = document.getElementById("bestPropertyCard");
+  if (!best) {
+    bestPropertyCard.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+  } else {
+    const initialItems = getInitialCostItems(best);
+    const initialSummary = initialItems.length
+      ? initialItems.slice(0, 3).map((item) => item.label).join(" / ")
+      : "初期費用の内訳はまだありません";
+    const routeUrl = getGoogleMapsRouteUrl(best);
+
+    bestPropertyCard.innerHTML = `
+      <div class="property-header">
+        <div>
+          <div class="property-title">${best.name}</div>
+          <div class="muted">${best.agency}</div>
+        </div>
+        <div class="status-tag">最有力候補</div>
+      </div>
+      <div class="meta-row">
+        <div class="tag">初期費用 ${formatCurrencyAmount(bestInitialCost)}</div>
+        <div class="tag">月額 ${formatCurrencyAmount(totalMonthlyCost(best), "-")}</div>
+        <div class="tag">最寄り ${best.nearestStation || "未設定"}</div>
+        <div class="tag">徒歩 ${formatMaybeNumber(best.walkMinutes, "分")}</div>
+      </div>
+      <div class="muted" style="margin-top: 10px">${initialSummary}</div>
+      <div class="item-actions summary-actions">
+        ${routeUrl ? `<a class="mini-button route-button" href="${routeUrl}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>` : ""}
+        <button class="mini-button" data-action="edit-property" data-id="${best.id}" type="button">編集</button>
+        <button class="mini-button" data-action="delete-property" data-id="${best.id}" type="button">削除</button>
+      </div>
+      <p class="note">${best.memo || "メモなし"}</p>
+    `;
+  }
+
+  renderPropertyTable(filteredProperties);
+  renderUpcomingTasks();
+  renderPurchaseSummary();
+}
+
+function renderProperties() {
+  const list = document.getElementById("propertyList");
+  const properties = getFilteredSortedProperties();
+  if (!properties.length) {
+    list.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
+    return;
+  }
+
+  list.innerHTML = properties
+    .map((property) => {
+      const imageHtml = (property.images || []).length
+        ? `<div class="gallery">${property.images
+            .map((image) => `<img src="${image.dataUrl}" alt="${property.name}" loading="lazy" />`)
+            .join("")}</div>`
+        : "";
+      const sourceLink = property.sourceUrl
+        ? `
+          <a class="mini-button" href="${property.sourceUrl}" target="_blank" rel="noreferrer">リンクを開く</a>
+          <span class="tag">${property.sourceUrl}</span>
+        `
+        : "";
+      const routeUrl = getGoogleMapsRouteUrl(property);
+
+      return `
+        <article class="list-item">
+          <div class="property-header">
+            <div>
+              <div class="property-title">${property.name}</div>
+              <div class="muted">${property.agency}</div>
+            </div>
+            <div class="item-actions">
+              <button class="mini-button" data-action="edit-property" data-id="${property.id}" type="button">編集</button>
+              <button class="mini-button" data-action="delete-property" data-id="${property.id}" type="button">削除</button>
+            </div>
+          </div>
+          <div class="meta-row">
+            <div class="tag">初期費用 ${formatCurrencyAmount(totalInitialCost(property))}</div>
+            <div class="tag">月額 ${formatCurrencyAmount(totalMonthlyCost(property), "-")}</div>
+            <div class="tag">${property.nearestStation || "駅未設定"} / 徒歩 ${formatMaybeNumber(property.walkMinutes, "分")}</div>
+            <div class="tag">広さ ${formatMaybeNumber(property.area, "m2")}</div>
+            <div class="tag">築 ${formatMaybeNumber(property.buildingAge, "年")}</div>
+            <div class="tag">${(getPropertyNumericValue(property, "floor") ?? 0) >= 2 ? "2階以上" : "1階含む"}</div>
+            <div class="tag">${property.bathToiletSeparate === "yes" ? "バストイレ別" : "要確認"}</div>
+            <div class="tag">目的地まで ${formatMaybeNumber(property.commuteMinutes, "分")}</div>
+          </div>
+          <div class="item-actions" style="margin-top: 10px">
+            ${routeUrl ? `<a class="mini-button route-button" href="${routeUrl}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>` : ""}
+            ${sourceLink}
+          </div>
+          <p class="note">${property.memo || "メモなし"}</p>
+          ${imageHtml}
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function registerEvents() {
   const media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   if (media) {
