@@ -485,6 +485,11 @@ th {
   margin-top: 10px;
 }
 
+.route-button {
+  min-height: 44px;
+  justify-content: center;
+}
+
 .table-actions {
   min-width: 112px;
 }

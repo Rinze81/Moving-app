@@ -60,6 +60,13 @@ const PROPERTY_FIELDS = [
   { name: "images", label: "画像", type: "file", full: true }
 ];
 
+PROPERTY_FIELDS.splice(4, 0, {
+  name: "address",
+  label: "物件住所",
+  type: "text",
+  placeholder: "例: 東京都中野区..."
+});
+
 const TASK_FIELDS = [
   { name: "id", type: "hidden" },
   { name: "title", label: "タスク名", type: "text", required: true },
@@ -161,6 +168,8 @@ const ASSIST_FIELD_MAP = {
   buildingAge: "築年数",
   memo: "メモ"
 };
+
+ASSIST_FIELD_MAP.address = "物件住所";
 
 const defaultData = {
   settings: {
@@ -676,6 +685,13 @@ function getGrandTotal() {
   return initialCost + totalExtraPurchases();
 }
 
+function getGoogleMapsRouteUrl(property) {
+  const origin = String(property?.address || "").trim();
+  const destination = String(state.settings.targetStation || "").trim();
+  if (!origin || !destination) return "";
+  return `https://www.google.com/maps/dir/${encodeURIComponent(origin)}/${encodeURIComponent(destination)}`;
+}
+
 function totalExtraPurchases() {
   return state.purchases.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 }
@@ -974,6 +990,7 @@ function renderSummary() {
   if (!best) {
     bestPropertyCard.innerHTML = document.getElementById("emptyStateTemplate").innerHTML;
   } else {
+    const routeUrl = getGoogleMapsRouteUrl(best);
     bestPropertyCard.innerHTML = `
       <div class="property-header">
         <div>
@@ -989,6 +1006,17 @@ function renderSummary() {
         <div class="tag">駅徒歩 ${best.walkMinutes || "-"}分</div>
       </div>
       <div class="item-actions summary-actions">
+        ${routeUrl ? `<a class="mini-button route-button" href="${routeUrl}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>` : ""}
+        ${
+          getGoogleMapsRouteUrl(best)
+            ? `<a class="mini-button route-button" href="${getGoogleMapsRouteUrl(best)}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>`
+            : ""
+        }
+        ${
+          getGoogleMapsRouteUrl(best)
+            ? `<a class="mini-button route-button" href="${getGoogleMapsRouteUrl(best)}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>`
+            : ""
+        }
         <button class="mini-button" data-action="edit-property" data-id="${best.id}" type="button">編集</button>
         <button class="mini-button" data-action="delete-property" data-id="${best.id}" type="button">削除</button>
       </div>
@@ -1078,11 +1106,29 @@ function renderProperties() {
             .map((image) => `<img src="${image.dataUrl}" alt="${property.name}" loading="lazy" />`)
             .join("")}</div>`
         : "";
+      let routeUrl = getGoogleMapsRouteUrl(property);
+      let routeLink = routeUrl
+        ? `
+          <a class="mini-button route-button" href="${routeUrl}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>
+        `
+        : "";
 
       const sourceLink = property.sourceUrl
         ? `
           <a class="mini-button" href="${property.sourceUrl}" target="_blank" rel="noreferrer">リンクを開く</a>
           <span class="tag">${property.sourceUrl}</span>
+        `
+        : "";
+      routeUrl = getGoogleMapsRouteUrl(property);
+      routeLink = routeUrl
+        ? `
+          <a class="mini-button route-button" href="${routeUrl}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>
+        `
+        : "";
+      routeUrl = getGoogleMapsRouteUrl(property);
+      routeLink = routeUrl
+        ? `
+          <a class="mini-button route-button" href="${routeUrl}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>
         `
         : "";
 
@@ -1107,7 +1153,10 @@ function renderProperties() {
             <div class="tag">${Number(property.floor || 0) >= 2 ? "2階以上" : "1階"}</div>
             <div class="tag">${property.bathToiletSeparate === "yes" ? "バストイレ別" : "同室"}</div>
           </div>
-          <div class="item-actions" style="margin-top: 10px">${sourceLink}</div>
+          <div class="item-actions" style="margin-top: 10px">
+            ${getGoogleMapsRouteUrl(property) ? `<a class="mini-button route-button" href="${getGoogleMapsRouteUrl(property)}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>` : ""}
+            ${sourceLink}
+          </div>
           <p class="note">${property.memo || "メモなし"}</p>
           ${imageHtml}
         </article>
@@ -1193,6 +1242,7 @@ function renderSummary() {
       </div>
       <div class="muted" style="margin-top: 10px">${initialSummary}</div>
       <div class="item-actions summary-actions">
+        ${getGoogleMapsRouteUrl(best) ? `<a class="mini-button route-button" href="${getGoogleMapsRouteUrl(best)}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>` : ""}
         <button class="mini-button" data-action="edit-property" data-id="${best.id}" type="button">編集</button>
         <button class="mini-button" data-action="delete-property" data-id="${best.id}" type="button">削除</button>
       </div>
@@ -1314,7 +1364,10 @@ function renderProperties() {
             <div class="tag">${property.bathToiletSeparate === "yes" ? "バストイレ別" : "混在"}</div>
             <div class="tag">目的地 ${formatMaybeNumber(property.commuteMinutes, "分")}</div>
           </div>
-          <div class="item-actions" style="margin-top: 10px">${sourceLink}</div>
+          <div class="item-actions" style="margin-top: 10px">
+            ${getGoogleMapsRouteUrl(property) ? `<a class="mini-button route-button" href="${getGoogleMapsRouteUrl(property)}" target="_blank" rel="noreferrer noopener">Google Mapsでルートを見る</a>` : ""}
+            ${sourceLink}
+          </div>
           <p class="note">${property.memo || "メモなし"}</p>
           ${imageHtml}
         </article>
@@ -1746,7 +1799,7 @@ function mapPropertyToRemote(property, sharedSpaceId) {
     destination_duration_value: getPropertyNumericValue(property, "commuteMinutes"),
     destination_distance_text: property.destinationDistance === undefined ? "" : String(property.destinationDistance ?? ""),
     destination_distance_value: getPropertyNumericValue(property, "destinationDistance"),
-    destination_transport_memo: "",
+    destination_transport_memo: property.address || "",
     age_text: property.buildingAge === undefined ? "" : String(property.buildingAge ?? ""),
     age_value: numberOrNull(property.buildingAge),
     free_rent_text: property.freeRentMonths === undefined ? "" : String(property.freeRentMonths ?? ""),
@@ -1775,6 +1828,7 @@ function mapRemoteToProperty(row) {
     name: row.title || "",
     agency: row.real_estate_company || "",
     sourceUrl: row.property_url || "",
+    address: row.destination_transport_memo || "",
     nearestStation: row.nearest_station || "",
     walkMinutes: row.station_walk_text || row.station_walk_value || "",
     rent: row.monthly_rent_value ?? row.monthly_rent_text ?? "",
