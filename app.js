@@ -661,6 +661,13 @@ function getGrandTotal() {
   return initialCost + totalExtraPurchases();
 }
 
+function getGoogleMapsRouteUrl(property) {
+  const origin = String(property?.address || "").trim();
+  const destination = String(state?.settings?.targetStation || "").trim();
+  if (!origin || !destination) return "";
+  return `https://www.google.com/maps/dir/${encodeURIComponent(origin)}/${encodeURIComponent(destination)}`;
+}
+
 function totalExtraPurchases() {
   return state.purchases.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 }
